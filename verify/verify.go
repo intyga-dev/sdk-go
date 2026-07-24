@@ -13,7 +13,16 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf16"
+)
+
+// DIV protocol constants (docs/DIV.md v1).
+const (
+	DivVersion    = 1
+	DivIntentType = "div-intent-verification"
+	// DefaultClockSkewSeconds is the RECOMMENDED expiry tolerance (DIV §6.2).
+	DefaultClockSkewSeconds = 30
 )
 
 // RequesterAttestation represents the workload identity attestation.
@@ -29,11 +38,13 @@ type RequesterIdentity struct {
 	Attestation *RequesterAttestation `json:"attestation"`
 }
 
-// ApprovalReceipt contains the signed witness payload and signature.
+// ApprovalReceipt is a DIV Proof Envelope: the signed canonical payload plus the signature
+// metadata needed to verify it (extended with the WebAuthn assertion components).
 type ApprovalReceipt struct {
 	CanonicalPayload  string                 `json:"canonicalPayload"`
+	Target            *string                `json:"target,omitempty"` // display/telemetry only; RP asserts its own
 	ActionType        *string                `json:"actionType,omitempty"`
-	ActionDescription string                 `json:"actionDescription"`
+	ActionDescription string                 `json:"actionDescription"` // the DIV `display` field
 	Params            map[string]interface{} `json:"params"`
 	SignerDID         *string                `json:"signerDid,omitempty"`
 	SignerPublicKey   *string                `json:"signerPublicKey,omitempty"`   // base64 SPKI/raw P-256 (ES256) or COSE key (WEBAUTHN)
@@ -42,7 +53,6 @@ type ApprovalReceipt struct {
 	AuthenticatorData *string                `json:"authenticatorData,omitempty"` // base64 (WEBAUTHN only)
 	ClientDataJSON    *string                `json:"clientDataJSON,omitempty"`    // base64 (WEBAUTHN only)
 	Requester         *RequesterIdentity     `json:"requester,omitempty"`
-	ExpiresAt         *string                `json:"expiresAt,omitempty"`
 	VerificationCode  string                 `json:"verificationCode"`
 }
 
@@ -60,6 +70,13 @@ type VerifyOptions struct {
 	// RequireUserVerification demands the User-Verified flag (biometric/PIN). Defaults to true;
 	// set to a non-nil false to accept mere user presence.
 	RequireUserVerification *bool
+	// AllowExpired opts out of the fail-closed expiry check (DIV §5.8) for post-hoc audit
+	// re-verification. Off by default.
+	AllowExpired bool
+	// AsOf overrides "now" for expiry evaluation. Zero value means time.Now().
+	AsOf time.Time
+	// ClockSkewSeconds is the expiry tolerance. Zero means DefaultClockSkewSeconds.
+	ClockSkewSeconds *int
 }
 
 // WebAuthn authenticatorData flag bits (WebAuthn L3 §6.1).
@@ -68,8 +85,10 @@ const (
 	authDataFlagUV = 0x04 // User Verified
 )
 
-// Expected contains expected context when verifying a receipt.
+// Expected contains expected context when verifying a receipt. Target and Nonce are asserted from
+// the relying party's own state — never read from the receipt (DIV Target Isolation + replay binding).
 type Expected struct {
+	Target     string                 `json:"target"`
 	Nonce      string                 `json:"nonce"`
 	ActionType string                 `json:"actionType"`
 	Params     map[string]interface{} `json:"params"`
@@ -147,41 +166,50 @@ func StableStringify(v interface{}) string {
 	}
 }
 
-// CanonicalAuthorizationPayloadV3 builds a byte-identical v3 canonical authorization payload.
-func CanonicalAuthorizationPayloadV3(
-	nonce string,
+// CanonicalIntentPayload builds a byte-identical DIV Intent Payload (docs/DIV.md v1). It builds the
+// full object and serializes it with StableStringify (strict RFC 8785 JCS — every key sorted). Do NOT
+// hand-template key order; the sort is the contract.
+func CanonicalIntentPayload(
+	target string,
 	actionType string,
-	actionDescription string,
+	display string,
 	params map[string]interface{},
 	requester RequesterIdentity,
-	expiresAt *string,
+	nonce string,
+	expiresAt string,
 ) string {
-	nonceB, _ := json.Marshal(nonce)
-	actionTypeB, _ := json.Marshal(actionType)
-	actionB, _ := json.Marshal(actionDescription)
-	paramsJSON := StableStringify(params)
-	didB, _ := json.Marshal(requester.DID)
-
-	var attestationStr string
-	if requester.Attestation == nil {
-		attestationStr = "null"
-	} else {
-		mB, _ := json.Marshal(requester.Attestation.Method)
-		iB, _ := json.Marshal(requester.Attestation.Issuer)
-		sB, _ := json.Marshal(requester.Attestation.Subject)
-		attestationStr = fmt.Sprintf(`{"method":%s,"issuer":%s,"subject":%s}`, string(mB), string(iB), string(sB))
+	var attestation interface{}
+	if requester.Attestation != nil {
+		attestation = map[string]interface{}{
+			"method":  requester.Attestation.Method,
+			"issuer":  requester.Attestation.Issuer,
+			"subject": requester.Attestation.Subject,
+		}
 	}
-
-	expiresSuffix := ""
-	if expiresAt != nil && *expiresAt != "" {
-		expB, _ := json.Marshal(*expiresAt)
-		expiresSuffix = fmt.Sprintf(`,"expiresAt":%s`, string(expB))
+	obj := map[string]interface{}{
+		"v":          DivVersion,
+		"type":       DivIntentType,
+		"target":     target,
+		"actionType": actionType,
+		"display":    display,
+		"params":     params,
+		"requester": map[string]interface{}{
+			"did":         requester.DID,
+			"attestation": attestation,
+		},
+		"nonce":     nonce,
+		"expiresAt": expiresAt,
 	}
+	return StableStringify(obj)
+}
 
-	return fmt.Sprintf(
-		`{"v":3,"type":"agent-authorization","nonce":%s,"actionType":%s,"action":%s,"params":%s,"requester":{"did":%s,"attestation":%s}%s}`,
-		string(nonceB), string(actionTypeB), string(actionB), paramsJSON, string(didB), attestationStr, expiresSuffix,
-	)
+// canonicalFields is just enough of the DIV Intent Payload to gate version/type and read the fields
+// the relying party takes from the receipt (nonce, expiresAt) rather than asserting itself.
+type canonicalFields struct {
+	V         *int   `json:"v"`
+	Type      string `json:"type"`
+	Nonce     string `json:"nonce"`
+	ExpiresAt string `json:"expiresAt"`
 }
 
 // VerifyApprovalReceipt verifies an ApprovalReceipt offline without external dependencies.
@@ -194,6 +222,20 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: "missing canonicalPayload"}
 	}
 
+	var fields canonicalFields
+	if err := json.Unmarshal([]byte(receipt.CanonicalPayload), &fields); err != nil {
+		return VerifyResult{OK: false, Reason: "canonicalPayload is not valid JSON"}
+	}
+	if fields.V == nil || *fields.V != DivVersion {
+		return VerifyResult{OK: false, Reason: "unsupported DIV payload version"}
+	}
+	if fields.Type != DivIntentType {
+		return VerifyResult{OK: false, Reason: "payload is not a div-intent-verification"}
+	}
+	if fields.Nonce != expected.Nonce {
+		return VerifyResult{OK: false, Reason: "receipt is for a different challenge"}
+	}
+
 	if receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
 		if !opts.AllowAutoApproved {
 			return VerifyResult{OK: false, Reason: "AUTO_APPROVED receipts are refused by default"}
@@ -202,20 +244,43 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	}
 
 	if receipt.Requester == nil {
-		return VerifyResult{OK: false, Reason: "v3 receipt missing requester"}
+		return VerifyResult{OK: false, Reason: "receipt missing requester"}
+	}
+	if fields.ExpiresAt == "" {
+		return VerifyResult{OK: false, Reason: "receipt missing expiresAt"}
 	}
 
-	recomputed := CanonicalAuthorizationPayloadV3(
-		expected.Nonce,
+	recomputed := CanonicalIntentPayload(
+		expected.Target,
 		expected.ActionType,
 		receipt.ActionDescription,
 		expected.Params,
 		*receipt.Requester,
-		receipt.ExpiresAt,
+		fields.Nonce,
+		fields.ExpiresAt,
 	)
 
 	if recomputed != receipt.CanonicalPayload {
-		return VerifyResult{OK: false, Reason: "params/actionType do not match what was approved"}
+		return VerifyResult{OK: false, Reason: "target/params/actionType do not match what was approved"}
+	}
+
+	// Expiration (DIV §5.8/§6.2). Fail-closed by default; opt out only for audit re-verification.
+	if !opts.AllowExpired {
+		expiry, err := time.Parse(time.RFC3339, fields.ExpiresAt)
+		if err != nil {
+			return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}
+		}
+		now := opts.AsOf
+		if now.IsZero() {
+			now = time.Now()
+		}
+		skew := DefaultClockSkewSeconds
+		if opts.ClockSkewSeconds != nil {
+			skew = *opts.ClockSkewSeconds
+		}
+		if now.After(expiry.Add(time.Duration(skew) * time.Second)) {
+			return VerifyResult{OK: false, Reason: "proof has expired (set AllowExpired for audit re-verification)"}
+		}
 	}
 
 	if receipt.Signature == nil || receipt.SignerPublicKey == nil {
