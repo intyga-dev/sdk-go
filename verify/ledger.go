@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 )
 
-// DEWP audit-ledger verification (docs/DEWP.md) — Go port. Byte-identical to @sakra-trust/verify
+// DEWP audit-ledger verification (docs/DEWP.md) — Go port. Byte-identical to @intyga/verify
 // (ledger-*.ts) and the Python/Rust ports, locked by packages/mcp-schemas/vectors/ledger-vectors.json.
 //
 // Domain separation: 0x00 leaf, 0x01 node, 0x02 empty root, 0x03 anchor. Node children are hex-decoded
@@ -88,7 +88,7 @@ func VerifyMerkleProof(leaf string, proof []LedgerProofStep, root string) bool {
 	return h == root
 }
 
-// AuditLeaf is the DEWP sakra.v1 profile row (18 fields, tenantSeq last). Pointers are nullable.
+// AuditLeaf is the DEWP intyga.v1 profile row (18 fields, tenantSeq last). Pointers are nullable.
 type AuditLeaf struct {
 	Seq             *string     `json:"seq"`
 	TenantSeq       *string     `json:"tenantSeq"`

@@ -1,4 +1,4 @@
-package sakra
+package intyga
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// mockGateway is an in-process stand-in for the SÄKRA gateway. httptest runs in the SAME process
+// mockGateway is an in-process stand-in for the Intyga gateway. httptest runs in the SAME process
 // (no child process, no external socket dependency), so these tests exercise the real HTTP paths.
 func TestRequireApprovalHappyPath(t *testing.T) {
 	var polls int32

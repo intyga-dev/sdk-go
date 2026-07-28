@@ -1,10 +1,10 @@
-// Package sakra is the Go client for SÄKRA. The primitive is uniform: request a challenge → a human
+// Package intyga is the Go client for Intyga. The primitive is uniform: request a challenge → a human
 // approves on their wallet → poll until resolved. It works for AI agents, humans, and any backend
 // service; the only difference is which API key/token you hold.
 //
-// Offline receipt verification lives in the standalone github.com/sakra-trust/sdk-go/verify package;
+// Offline receipt verification lives in the standalone github.com/intyga-dev/sdk-go/verify package;
 // this client returns its ApprovalReceipt type so a relying party can re-verify what was signed.
-package sakra
+package intyga
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 	"net/url"
 	"time"
 
-	verify "github.com/sakra-trust/sdk-go/verify"
+	verify "github.com/intyga-dev/sdk-go/verify"
 )
 
 // ApprovalReceipt is re-exported from verify-go so callers can verify offline without a second import.
@@ -48,7 +48,7 @@ type ClientOptions struct {
 	HTTPClient *http.Client
 }
 
-// Client talks to a SÄKRA gateway.
+// Client talks to a Intyga gateway.
 type Client struct {
 	opts        ClientOptions
 	http        *http.Client

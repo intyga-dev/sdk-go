@@ -1,15 +1,15 @@
-# sdk-go — SÄKRA client for Go
+# sdk-go — Intyga client for Go
 
 Gate any high-risk backend action behind a real human approval. The primitive is uniform: **request a challenge → a human approves with a passkey or security key → poll until resolved** — the same client works for scripts, pipelines, and AI agents.
 
-This package **bundles the offline verifier** (`github.com/sakra-trust/sdk-go/verify`), so you can request an approval *and* independently verify the receipt without adding a second dependency.
+This package **bundles the offline verifier** (`github.com/intyga-dev/sdk-go/verify`), so you can request an approval *and* independently verify the receipt without adding a second dependency.
 
-> Status: **not yet published**. The standalone verifier also ships on its own as [`verify-go`](https://github.com/SAKRA-trust/verify-go).
+> Status: **not yet published**. The standalone verifier also ships on its own as [`verify-go`](https://github.com/intyga-dev/verify-go).
 
 ## Install
 
 ```sh
-go get github.com/sakra-trust/sdk-go
+go get github.com/intyga-dev/sdk-go
 ```
 
 ## Require a human approval before a high-risk action
@@ -18,29 +18,29 @@ go get github.com/sakra-trust/sdk-go
 import (
 	"context"
 
-	sakra "github.com/sakra-trust/sdk-go"
-	verify "github.com/sakra-trust/sdk-go/verify"
+	intyga "github.com/intyga-dev/sdk-go"
+	verify "github.com/intyga-dev/sdk-go/verify"
 )
 
-client := sakra.NewClient(sakra.ClientOptions{
-	GatewayURL:   "https://api.sakra.com",
-	ClientID:     os.Getenv("SAKRA_CLIENT_ID"),
-	ClientSecret: os.Getenv("SAKRA_CLIENT_SECRET"),
+client := intyga.NewClient(intyga.ClientOptions{
+	GatewayURL:   "https://api.intyga.com",
+	ClientID:     os.Getenv("INTYGA_CLIENT_ID"),
+	ClientSecret: os.Getenv("INTYGA_CLIENT_SECRET"),
 })
 
 // Blocks until the human approves with their passkey / security key (or times out):
 r, err := client.RequireApproval(context.Background(), "Delete production database",
-	sakra.RequireApprovalOptions{
-		AuthorizeOptions: sakra.AuthorizeOptions{
+	intyga.RequireApprovalOptions{
+		AuthorizeOptions: intyga.AuthorizeOptions{
 			ActionType: "wipe_production",
 			Params:     map[string]interface{}{"target": "prod-db-1"},
 		},
 	})
-if err != nil || r.Status != sakra.StatusApproved {
+if err != nil || r.Status != intyga.StatusApproved {
 	log.Fatal("not authorized")
 }
 
-// Optional hard binding before executing — no SÄKRA secret involved:
+// Optional hard binding before executing — no Intyga secret involved:
 res := verify.VerifyApprovalReceipt(*r.Receipt, verify.Expected{
 	Nonce: r.Nonce, ActionType: "wipe_production",
 	Params: map[string]interface{}{"target": "prod-db-1"},
@@ -50,7 +50,7 @@ if !res.OK {
 }
 ```
 
-Works identically whether the token is a **human key** (backend/service) or an **agent key** — SÄKRA is a general zero-trust gate for *any* backend action, not just agents.
+Works identically whether the token is a **human key** (backend/service) or an **agent key** — Intyga is a general zero-trust gate for *any* backend action, not just agents.
 
 ## API
 
@@ -60,9 +60,9 @@ Works identically whether the token is a **human key** (backend/service) or an *
 - `Verify(ctx, documentHash)` — public witness lookup.
 
 ## Also available in
-- TypeScript — [`@sakra-trust/sdk`](https://github.com/SAKRA-trust/sdk)
-- Python — [`sdk-python`](https://github.com/SAKRA-trust/sdk-python)
-- Rust — [`sdk-rust`](https://github.com/SAKRA-trust/sdk-rust)
+- TypeScript — [`@intyga/sdk`](https://github.com/intyga-dev/sdk)
+- Python — [`sdk-python`](https://github.com/intyga-dev/sdk-python)
+- Rust — [`sdk-rust`](https://github.com/intyga-dev/sdk-rust)
 
 ## License
 

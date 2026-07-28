@@ -1,4 +1,4 @@
-module github.com/sakra-trust/sdk-go
+module github.com/intyga-dev/sdk-go
 
 go 1.21
 

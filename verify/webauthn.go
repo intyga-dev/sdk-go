@@ -15,7 +15,7 @@ import (
 // ─── Minimal CBOR reader (COSE_Key only) ─────────────────────────────────────
 // Just enough CBOR to walk a COSE_Key map: ints, byte/text strings, arrays, maps. Deliberately NOT a
 // general decoder — anything outside that subset is rejected rather than guessed. Mirrors the reader in
-// @sakra-trust/verify so all languages parse identical bytes.
+// @intyga/verify so all languages parse identical bytes.
 
 type cborValue interface{}
 
@@ -182,83 +182,94 @@ func base64urlNoPad(b []byte) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// verifyWebAuthn verifies a WEBAUTHN receipt: it pins the assertion to the expected origin and RP ID,
-// confirms user presence/verification, checks the challenge equals base64url(canonicalPayload), and
-// verifies the ES256 signature over authenticatorData ‖ SHA-256(clientDataJSON).
-func verifyWebAuthn(receipt ApprovalReceipt, opts VerifyOptions) VerifyResult {
-	if receipt.AuthenticatorData == nil || receipt.ClientDataJSON == nil {
-		return VerifyResult{OK: false, Reason: "WebAuthn receipt missing authenticatorData or clientDataJSON"}
+// verifyWebAuthnWitness pins the assertion to the expected origin and RP ID, confirms user
+// presence/verification, checks the challenge equals base64url(canonicalPayload), and verifies the
+// ES256 signature over authenticatorData ‖ SHA-256(clientDataJSON).
+//
+// verifyWebAuthnWitness verifies one WEBAUTHN witness against an already-TRUSTED key. The key comes
+// from the caller's trust anchor — never from the receipt. Returns "" on success.
+func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt ApprovalReceipt, opts VerifyOptions) string {
+	if w.AuthenticatorData == nil || w.ClientDataJSON == nil {
+		return "WebAuthn receipt missing authenticatorData or clientDataJSON"
 	}
 	// FAIL CLOSED: without an expected origin and RP ID there is nothing to pin the assertion to.
 	if opts.ExpectedOrigin == "" || opts.ExpectedRpID == "" {
-		return VerifyResult{OK: false, Reason: "WebAuthn receipts require ExpectedOrigin and ExpectedRpID — without them an assertion from any relying party would verify"}
+		return "WebAuthn receipts require ExpectedOrigin and ExpectedRpID — without them an assertion from any relying party would verify"
 	}
 
-	clientDataBuf, err := base64.StdEncoding.DecodeString(*receipt.ClientDataJSON)
+	clientDataBuf, err := base64.StdEncoding.DecodeString(*w.ClientDataJSON)
 	if err != nil {
-		return VerifyResult{OK: false, Reason: "invalid clientDataJSON base64"}
+		return "invalid clientDataJSON base64"
 	}
 	var clientData struct {
 		Type      string `json:"type"`
 		Challenge string `json:"challenge"`
 		Origin    string `json:"origin"`
+		// CrossOrigin is the only signal that separates "approved on our page" from "approved
+		// inside someone else's page": an embedded RP frame reports the RP's OWN origin and its
+		// rpIdHash matches too (W3C WebAuthn L3 §7.2 step 9).
+		CrossOrigin bool `json:"crossOrigin"`
 	}
 	if err := json.Unmarshal(clientDataBuf, &clientData); err != nil {
-		return VerifyResult{OK: false, Reason: "clientDataJSON is not valid JSON"}
+		return "clientDataJSON is not valid JSON"
 	}
 
 	// An assertion, not a registration: webauthn.create signs a different ceremony over the same
 	// challenge bytes and must never be accepted as approval.
 	if clientData.Type != "webauthn.get" {
-		return VerifyResult{OK: false, Reason: "clientDataJSON is not a webauthn.get assertion"}
+		return "clientDataJSON is not a webauthn.get assertion"
 	}
 	if clientData.Origin != opts.ExpectedOrigin {
-		return VerifyResult{OK: false, Reason: "assertion origin does not match ExpectedOrigin"}
+		return "assertion origin does not match ExpectedOrigin"
+	}
+	if clientData.CrossOrigin && !opts.AllowCrossOrigin {
+		return "assertion was produced in a cross-origin frame (crossOrigin=true)"
 	}
 	expectedChallenge := base64urlNoPad([]byte(receipt.CanonicalPayload))
 	if stripBase64Padding(clientData.Challenge) != expectedChallenge {
-		return VerifyResult{OK: false, Reason: "clientDataJSON challenge does not match canonical payload"}
+		return "clientDataJSON challenge does not match canonical payload"
 	}
 
-	authData, err := base64.StdEncoding.DecodeString(*receipt.AuthenticatorData)
+	authData, err := base64.StdEncoding.DecodeString(*w.AuthenticatorData)
 	if err != nil {
-		return VerifyResult{OK: false, Reason: "invalid authenticatorData base64"}
+		return "invalid authenticatorData base64"
 	}
 	if len(authData) < 37 {
-		return VerifyResult{OK: false, Reason: "authenticatorData is too short"}
+		return "authenticatorData is too short"
 	}
 	rpIdHash := sha256.Sum256([]byte(opts.ExpectedRpID))
 	if subtle.ConstantTimeCompare(authData[:32], rpIdHash[:]) != 1 {
-		return VerifyResult{OK: false, Reason: "authenticatorData rpIdHash does not match ExpectedRpID"}
+		return "authenticatorData rpIdHash does not match ExpectedRpID"
 	}
 	flags := authData[32]
 	if flags&authDataFlagUP == 0 {
-		return VerifyResult{OK: false, Reason: "authenticatorData user-present flag is not set"}
+		return "authenticatorData user-present flag is not set"
 	}
 	requireUV := opts.RequireUserVerification == nil || *opts.RequireUserVerification
 	if requireUV && flags&authDataFlagUV == 0 {
-		return VerifyResult{OK: false, Reason: "authenticatorData user-verified flag is not set"}
+		return "authenticatorData user-verified flag is not set"
 	}
 
-	coseBuf, err := base64.StdEncoding.DecodeString(*receipt.SignerPublicKey)
+	// The COSE key is parsed from the TRUSTED key, not the receipt's copy.
+	coseBuf, err := base64.StdEncoding.DecodeString(trustedKey)
 	if err != nil {
-		return VerifyResult{OK: false, Reason: "invalid signerPublicKey base64"}
+		return "invalid trusted key base64"
 	}
 	pub, err := parseCoseP256Key(coseBuf)
 	if err != nil {
-		return VerifyResult{OK: false, Reason: err.Error()}
+		return err.Error()
 	}
-	sigBytes, err := base64.StdEncoding.DecodeString(*receipt.Signature)
+	sigBytes, err := base64.StdEncoding.DecodeString(w.Signature)
 	if err != nil {
-		return VerifyResult{OK: false, Reason: "invalid signature base64"}
+		return "invalid signature base64"
 	}
 
 	clientDataHash := sha256.Sum256(clientDataBuf)
 	signedData := append(append([]byte{}, authData...), clientDataHash[:]...)
 	if !verifyEcdsaSignature(pub, signedData, sigBytes) {
-		return VerifyResult{OK: false, Reason: "WebAuthn signature does not verify against signer key"}
+		return "WebAuthn signature does not verify against the trusted signer key"
 	}
-	return VerifyResult{OK: true}
+	return ""
 }
 
 // stripBase64Padding removes trailing '=' so a padded challenge compares equal to the unpadded form.
