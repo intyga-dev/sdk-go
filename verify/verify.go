@@ -21,8 +21,27 @@ import (
 const (
 	DivVersion    = 1
 	DivIntentType = "div-intent-verification"
+	// DivOfflineIntentType marks an OFFLINE APPROVAL (DIV §5a.2): a normal quorum approval collected
+	// OUT OF BAND at incident time because the gateway is unreachable. The relying party builds the
+	// challenge itself, humans sign it on a disconnected device, and this verifier checks the result.
+	//
+	// The distinct type lives INSIDE the signed bytes, so an offline proof can never verify as a normal
+	// approval, or the reverse — even for a byte-identical action, because the reconstructed payload
+	// differs and the signature comparison fails.
+	DivOfflineIntentType = "div-offline-intent"
+	// DivDelegationType marks a DELEGATION (DIV §5a.5): a pre-signed statement transferring the
+	// AUTHORITY TO APPROVE one pre-declared action to named local operators. It authorizes NOTHING on
+	// its own — VerifyApprovalReceipt refuses this type outright, with no opt-in. Use VerifyDelegation.
+	DivDelegationType = "div-delegation"
 	// DefaultClockSkewSeconds is the RECOMMENDED expiry tolerance (DIV §6.2).
 	DefaultClockSkewSeconds = 30
+	// MaxOfflineWindowMinutes caps an offline proof's validity window, enforced at verification and not
+	// only at mint. An offline relying party has no revocation channel, so the short window is the only
+	// bound there is (DIV §5a.3).
+	MaxOfflineWindowMinutes = 60
+	// MaxDelegationWindowHours caps a delegation's window (DIV §5a.6). Hours, not weeks: a delegation
+	// cannot be recalled from a relying party that is offline.
+	MaxDelegationWindowHours = 72
 )
 
 // RequesterAttestation represents the workload identity attestation.
@@ -63,15 +82,15 @@ type ApprovalReceipt struct {
 	// Signatures carries EVERY witness — one entry per approver. Emitting only the first approval
 	// made an M-of-N receipt indistinguishable from a 1-of-1 one, so the quorum could not be checked
 	// offline at all. Empty for AUTO_APPROVED, which has no human signature.
-	Signatures        []ApprovalWitness      `json:"signatures,omitempty"`
-	SignerDID         *string                `json:"signerDid,omitempty"`
-	SignerPublicKey   *string                `json:"signerPublicKey,omitempty"`   // base64 SPKI/raw P-256 (ES256) or COSE key (WEBAUTHN)
-	Signature         *string                `json:"signature,omitempty"`         // base64 P-256 signature
-	SigAlg            *string                `json:"sigAlg,omitempty"`            // "ES256" | "WEBAUTHN" | "AUTO_APPROVED"
-	AuthenticatorData *string                `json:"authenticatorData,omitempty"` // base64 (WEBAUTHN only)
-	ClientDataJSON    *string                `json:"clientDataJSON,omitempty"`    // base64 (WEBAUTHN only)
-	Requester         *RequesterIdentity     `json:"requester,omitempty"`
-	VerificationCode  string                 `json:"verificationCode"`
+	Signatures        []ApprovalWitness  `json:"signatures,omitempty"`
+	SignerDID         *string            `json:"signerDid,omitempty"`
+	SignerPublicKey   *string            `json:"signerPublicKey,omitempty"`   // base64 SPKI/raw P-256 (ES256) or COSE key (WEBAUTHN)
+	Signature         *string            `json:"signature,omitempty"`         // base64 P-256 signature
+	SigAlg            *string            `json:"sigAlg,omitempty"`            // "ES256" | "WEBAUTHN" | "AUTO_APPROVED"
+	AuthenticatorData *string            `json:"authenticatorData,omitempty"` // base64 (WEBAUTHN only)
+	ClientDataJSON    *string            `json:"clientDataJSON,omitempty"`    // base64 (WEBAUTHN only)
+	Requester         *RequesterIdentity `json:"requester,omitempty"`
+	VerificationCode  string             `json:"verificationCode"`
 }
 
 // VerifyOptions carries relying-party context required to verify certain receipts.
@@ -91,6 +110,18 @@ type VerifyOptions struct {
 	// AllowExpired opts out of the fail-closed expiry check (DIV §5.8) for post-hoc audit
 	// re-verification. Off by default.
 	AllowExpired bool
+	// AllowOffline opts in to accepting an OFFLINE APPROVAL (DIV §5a.3). Off by default, exactly like
+	// AllowAutoApproved: set it at the SPECIFIC call permitted to run under one, never globally. A
+	// process-wide default would make every gated action in the service accept an out-of-band approval.
+	//
+	// It weakens nothing else: the quorum, four-eyes and target binding signed into the payload are
+	// still enforced, the window is capped at MaxOfflineWindowMinutes, and a proof whose signed policy
+	// demands a hardware key is REFUSED because that cannot be satisfied offline.
+	AllowOffline bool
+	// Delegation is a delegation ALREADY verified by VerifyDelegation, substituting the eligible
+	// approver set and the quorum for this one verification (DIV §5a.6). Only meaningful with
+	// AllowOffline. It narrows rather than widens.
+	Delegation *VerifiedDelegation
 	// AsOf overrides "now" for expiry evaluation. Zero value means time.Now().
 	AsOf time.Time
 	// ClockSkewSeconds is the expiry tolerance. Zero means DefaultClockSkewSeconds.
@@ -128,6 +159,14 @@ type ApproverTrustAnchor struct {
 	PublicKeys []string
 	DIDs       []string
 	ResolveKey func(did string) string
+	// ResolveKeys returns EVERY key bound to one DID, and takes precedence over ResolveKey.
+	//
+	// An approver commonly holds a software key plus one or more registered authenticators, and any of
+	// them is legitimately theirs. Returning them all keeps the identity intact instead of forcing
+	// callers to flatten everything into PublicKeys mode and lose the DID binding — which would make
+	// quorum count credentials instead of people, so one approver with three keys could satisfy a
+	// 3-of-N. Every key returned here counts as that ONE approver.
+	ResolveKeys func(did string) []string
 }
 
 // candidates returns the keys this witness may be accepted under, each tagged with the identity it
@@ -137,14 +176,26 @@ type ApproverTrustAnchor struct {
 // key simply fails to verify, and byte-equality is wrong for COSE, which has many valid encodings of
 // the same P-256 key.
 func (a ApproverTrustAnchor) candidates(signerDID string) ([][2]string, string) {
+	return a.candidatesRestricted(signerDID, nil)
+}
+
+// candidatesRestricted is candidates plus an optional narrowing to the identities a delegation names
+// (DIV §5a.6 step 3). Applied ON TOP of the trust anchor, never instead of it: a delegation says WHO
+// may approve, and the anchor still says which key is actually theirs.
+func (a ApproverTrustAnchor) candidatesRestricted(signerDID string, restrictTo []string) ([][2]string, string) {
 	if len(a.PublicKeys) > 0 {
+		// A delegation names identities, and in PublicKeys mode signerDID is an unverified string —
+		// enforcing DelegatedTo against it would be security theatre. Refuse rather than pretend.
+		if restrictTo != nil {
+			return nil, "a delegation names approver identities, so it requires a DID-mode trust anchor (DIDs + ResolveKeys); in PublicKeys mode signerDid is unverified and delegatedTo cannot be enforced"
+		}
 		out := make([][2]string, 0, len(a.PublicKeys))
 		for _, k := range a.PublicKeys {
 			out = append(out, [2]string{k, k})
 		}
 		return out, ""
 	}
-	if len(a.DIDs) == 0 || a.ResolveKey == nil {
+	if len(a.DIDs) == 0 || (a.ResolveKey == nil && a.ResolveKeys == nil) {
 		return nil, "expected.Approvers is required — the Approver key MUST come from your own trust policy, never from the receipt (DIV Invariant 3)"
 	}
 	found := false
@@ -157,19 +208,43 @@ func (a ApproverTrustAnchor) candidates(signerDID string) ([][2]string, string) 
 	if !found {
 		return nil, fmt.Sprintf("signer %s is not an authorized approver", signerDID)
 	}
-	key := a.ResolveKey(signerDID)
-	if key == "" {
+	if restrictTo != nil {
+		named := false
+		for _, d := range restrictTo {
+			if d == signerDID {
+				named = true
+				break
+			}
+		}
+		if !named {
+			return nil, fmt.Sprintf("signer %s is not named in the delegation", signerDID)
+		}
+	}
+	var keys []string
+	if a.ResolveKeys != nil {
+		keys = a.ResolveKeys(signerDID)
+	} else if key := a.ResolveKey(signerDID); key != "" {
+		keys = []string{key}
+	}
+	out := make([][2]string, 0, len(keys))
+	for _, k := range keys {
+		if k != "" {
+			// All keys for one DID share that DID as their identity, so quorum still counts one approver.
+			out = append(out, [2]string{k, signerDID})
+		}
+	}
+	if len(out) == 0 {
 		return nil, fmt.Sprintf("no trusted key could be resolved for %s", signerDID)
 	}
-	return [][2]string{{key, signerDID}}, ""
+	return out, ""
 }
 
 // ApprovalWitness is one approver's signature over the canonical payload.
 type ApprovalWitness struct {
-	SignerDID       string  `json:"signerDid"`
-	SignerPublicKey string  `json:"signerPublicKey"`
-	Signature       string  `json:"signature"`
-	SigAlg          *string `json:"sigAlg,omitempty"`
+	SignerDID         string  `json:"signerDid"`
+	SignerPublicKey   string  `json:"signerPublicKey"`
+	Signature         string  `json:"signature"`
+	SigAlg            *string `json:"sigAlg,omitempty"`
 	AuthenticatorData *string `json:"authenticatorData,omitempty"`
 	ClientDataJSON    *string `json:"clientDataJSON,omitempty"`
 }
@@ -259,6 +334,26 @@ func CanonicalIntentPayload(
 	nonce string,
 	expiresAt string,
 ) string {
+	req, rq := canonicalCommon(requester, requirement)
+	obj := map[string]interface{}{
+		"v":           DivVersion,
+		"type":        DivIntentType,
+		"target":      target,
+		"actionType":  actionType,
+		"display":     display,
+		"params":      params,
+		"requester":   req,
+		"requirement": rq,
+		"nonce":       nonce,
+		"expiresAt":   expiresAt,
+	}
+	return StableStringify(obj)
+}
+
+// canonicalCommon builds the requester + requirement projection shared by all three builders. One
+// definition rather than three copies: these bytes are the contract, and a field added to one builder
+// but not the others is exactly the drift the golden vectors exist to catch.
+func canonicalCommon(requester RequesterIdentity, requirement ApprovalRequirement) (interface{}, interface{}) {
 	var attestation interface{}
 	if requester.Attestation != nil {
 		attestation = map[string]interface{}{
@@ -274,37 +369,123 @@ func CanonicalIntentPayload(
 	if aaguids == nil {
 		aaguids = []string{}
 	}
-	obj := map[string]interface{}{
-		"v":          DivVersion,
-		"type":       DivIntentType,
-		"target":     target,
-		"actionType": actionType,
-		"display":    display,
-		"params":     params,
-		"requester": map[string]interface{}{
+	return map[string]interface{}{
 			"did":         requester.DID,
 			"attestation": attestation,
-		},
-		"requirement": map[string]interface{}{
+		}, map[string]interface{}{
 			"requiredApprovals":      requirement.RequiredApprovals,
 			"requireHardwareKey":     requirement.RequireHardwareKey,
 			"allowedAaguids":         aaguids,
 			"requesterCannotApprove": requirement.RequesterCannotApprove,
-		},
-		"nonce":     nonce,
-		"expiresAt": expiresAt,
+		}
+}
+
+// CanonicalOfflineIntentPayload builds a byte-identical OFFLINE APPROVAL payload (DIV §5a.2), pinned
+// by the offlineIntentPayloads golden vectors.
+//
+// Deliberately a separate function rather than a type argument on CanonicalIntentPayload, so the
+// ordinary approval path cannot accidentally emit an offline payload.
+//
+// challengedAt exists so a verifier can bound the validity WINDOW, not merely the expiry: a payload
+// minted with an over-long expiresAt is otherwise indistinguishable from a correct one.
+func CanonicalOfflineIntentPayload(
+	target string,
+	actionType string,
+	display string,
+	params map[string]interface{},
+	requester RequesterIdentity,
+	requirement ApprovalRequirement,
+	nonce string,
+	challengedAt string,
+	expiresAt string,
+) string {
+	req, rq := canonicalCommon(requester, requirement)
+	return StableStringify(map[string]interface{}{
+		"v":            DivVersion,
+		"type":         DivOfflineIntentType,
+		"target":       target,
+		"actionType":   actionType,
+		"display":      display,
+		"params":       params,
+		"requester":    req,
+		"requirement":  rq,
+		"nonce":        nonce,
+		"challengedAt": challengedAt,
+		"expiresAt":    expiresAt,
+	})
+}
+
+// CanonicalDelegationPayload builds a byte-identical DELEGATION payload (DIV §5a.5) — a signed
+// statement about WHO MAY APPROVE, not about what may run.
+//
+// delegatedTo is sorted because it is a SET, exactly as allowedAaguids is. requirement describes the
+// quorum that signed this delegation; delegatedQuorum is how many of delegatedTo must sign at incident
+// time. Two different quorums, so both are in the signed bytes.
+func CanonicalDelegationPayload(
+	target string,
+	actionType string,
+	display string,
+	params map[string]interface{},
+	requester RequesterIdentity,
+	requirement ApprovalRequirement,
+	delegatedTo []string,
+	delegatedQuorum int,
+	nonce string,
+	sealedAt string,
+	expiresAt string,
+) string {
+	req, rq := canonicalCommon(requester, requirement)
+	delegates := append([]string(nil), delegatedTo...)
+	sort.Strings(delegates)
+	if delegates == nil {
+		delegates = []string{}
 	}
-	return StableStringify(obj)
+	return StableStringify(map[string]interface{}{
+		"v":               DivVersion,
+		"type":            DivDelegationType,
+		"target":          target,
+		"actionType":      actionType,
+		"display":         display,
+		"params":          params,
+		"requester":       req,
+		"requirement":     rq,
+		"delegatedTo":     delegates,
+		"delegatedQuorum": delegatedQuorum,
+		"nonce":           nonce,
+		"sealedAt":        sealedAt,
+		"expiresAt":       expiresAt,
+	})
 }
 
 // canonicalFields is just enough of the DIV Intent Payload to gate version/type and read the fields
 // the relying party takes from the receipt (nonce, expiresAt) rather than asserting itself.
 type canonicalFields struct {
-	V           *int                 `json:"v"`
-	Type        string               `json:"type"`
-	Nonce       string               `json:"nonce"`
-	ExpiresAt   string               `json:"expiresAt"`
-	Requirement *ApprovalRequirement `json:"requirement"`
+	V               *int                 `json:"v"`
+	Type            string               `json:"type"`
+	Nonce           string               `json:"nonce"`
+	ExpiresAt       string               `json:"expiresAt"`
+	ChallengedAt    string               `json:"challengedAt"`
+	SealedAt        string               `json:"sealedAt"`
+	DelegatedTo     []string             `json:"delegatedTo"`
+	DelegatedQuorum *int                 `json:"delegatedQuorum"`
+	Requirement     *ApprovalRequirement `json:"requirement"`
+}
+
+// VerifiedDelegation is a delegation whose own signature, quorum and window have been checked by
+// VerifyDelegation. It is an INPUT to a later approval check, never a substitute for one.
+type VerifiedDelegation struct {
+	// DelegatedTo are the identities permitted to approve at incident time, deduplicated.
+	DelegatedTo []string
+	// DelegatedQuorum is how many distinct members of DelegatedTo must sign.
+	DelegatedQuorum int
+	// The single action this delegation covers. All three must equal what is being executed.
+	Target     string
+	ActionType string
+	Params     map[string]interface{}
+	// Nonce is the delegation's OWN nonce — for the audit trail, never for authorization.
+	Nonce     string
+	Signers   []string
+	ExpiresAt string
 }
 
 // VerifyApprovalReceipt verifies an ApprovalReceipt offline without external dependencies.
@@ -324,14 +505,34 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if fields.V == nil || *fields.V != DivVersion {
 		return VerifyResult{OK: false, Reason: "unsupported DIV payload version"}
 	}
-	if fields.Type != DivIntentType {
+	// A DELEGATION authorizes nothing (DIV §5a.5). Refused here unconditionally — there is deliberately
+	// NO option that would let one through, because a delegation that could authorize its own action
+	// would be exactly the pre-signed bearer capability the design exists to avoid.
+	if fields.Type == DivDelegationType {
+		return VerifyResult{OK: false, Reason: "this is a delegation, which authorizes no action on its own — verify it with VerifyDelegation and pass the result as opts.Delegation, together with an offline approval signed by the delegated operators"}
+	}
+	offline := fields.Type == DivOfflineIntentType
+	if !offline && fields.Type != DivIntentType {
 		return VerifyResult{OK: false, Reason: "payload is not a div-intent-verification"}
+	}
+	if offline && !opts.AllowOffline {
+		return VerifyResult{OK: false, Reason: "this is an offline approval; set AllowOffline at the specific call site permitted to run under one"}
+	}
+	// A delegation only ever substitutes the approver set for an OFFLINE proof. Accepting it against an
+	// ordinary gateway-mediated receipt would silently replace the quorum the gateway enforced.
+	if opts.Delegation != nil && !offline {
+		return VerifyResult{OK: false, Reason: "a delegation can only substitute the approver set for an offline approval"}
 	}
 	if fields.Nonce != expected.Nonce {
 		return VerifyResult{OK: false, Reason: "receipt is for a different challenge"}
 	}
 
 	if receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
+		// An offline approval with no human signature is a contradiction: the entire premise is that
+		// humans signed out of band, so AllowAutoApproved must not rescue it.
+		if offline {
+			return VerifyResult{OK: false, Reason: "an offline approval cannot be auto-approved — there is no human signature to verify"}
+		}
 		if !opts.AllowAutoApproved {
 			return VerifyResult{OK: false, Reason: "AUTO_APPROVED receipts are refused by default"}
 		}
@@ -351,16 +552,85 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: "receipt payload is missing the signed approval requirement"}
 	}
 
-	recomputed := CanonicalIntentPayload(
-		expected.Target,
-		expected.ActionType,
-		receipt.ActionDescription,
-		expected.Params,
-		*receipt.Requester,
-		*fields.Requirement,
-		fields.Nonce,
-		fields.ExpiresAt,
-	)
+	// Offline proofs carry challengedAt so the validity WINDOW can be bounded here, not merely at mint.
+	if offline {
+		if fields.ChallengedAt == "" {
+			return VerifyResult{OK: false, Reason: "offline proof is missing challengedAt"}
+		}
+		challenged, err := time.Parse(time.RFC3339, fields.ChallengedAt)
+		if err != nil {
+			return VerifyResult{OK: false, Reason: "challengedAt is not a valid RFC3339 timestamp"}
+		}
+		if expiry, err := time.Parse(time.RFC3339, fields.ExpiresAt); err == nil {
+			window := expiry.Sub(challenged)
+			if window < 0 {
+				return VerifyResult{OK: false, Reason: "offline proof expires before it was challenged"}
+			}
+			if window > time.Duration(MaxOfflineWindowMinutes)*time.Minute {
+				return VerifyResult{OK: false, Reason: fmt.Sprintf(
+					"offline window is %.1f minutes, over the %d-minute maximum", window.Minutes(), MaxOfflineWindowMinutes)}
+			}
+		}
+		// A hardware-key policy CANNOT be satisfied offline (DIV §5a.3 step 4). WebAuthn needs a secure
+		// context and an RP ID an offline signing surface will not match, so an offline witness is always
+		// a bare key. Accepting the proof anyway would silently downgrade the policy the approver
+		// attested to, so it is refused instead — fail closed, and say why.
+		if fields.Requirement.RequireHardwareKey {
+			return VerifyResult{OK: false, Reason: "the signed policy requires a hardware-backed WebAuthn credential, which cannot be produced offline — this action cannot be approved out of band (DIV §5a.3)"}
+		}
+	}
+
+	// A delegation substitutes WHO may approve and HOW MANY, and nothing else (DIV §5a.6). Every
+	// agreement check is on the SIGNED bytes of both proofs, so neither can widen the other.
+	var delegatedTo []string
+	delegatedQuorum := 0
+	if opts.Delegation != nil {
+		d := opts.Delegation
+		if d.Target != expected.Target {
+			return VerifyResult{OK: false, Reason: "the delegation was issued for a different target"}
+		}
+		if d.ActionType != expected.ActionType {
+			return VerifyResult{OK: false, Reason: "the delegation was issued for a different actionType"}
+		}
+		if StableStringify(d.Params) != StableStringify(expected.Params) {
+			return VerifyResult{OK: false, Reason: "the delegation was issued for different params"}
+		}
+		// The offline payload's signed quorum must equal the delegated one, so the operators signed the
+		// policy their signatures are being counted toward rather than a different one.
+		if fields.Requirement.RequiredApprovals != d.DelegatedQuorum {
+			return VerifyResult{OK: false, Reason: fmt.Sprintf(
+				"offline proof declares %d required approval(s) but the delegation delegates a quorum of %d",
+				fields.Requirement.RequiredApprovals, d.DelegatedQuorum)}
+		}
+		delegatedTo = d.DelegatedTo
+		delegatedQuorum = d.DelegatedQuorum
+	}
+
+	var recomputed string
+	if offline {
+		recomputed = CanonicalOfflineIntentPayload(
+			expected.Target,
+			expected.ActionType,
+			receipt.ActionDescription,
+			expected.Params,
+			*receipt.Requester,
+			*fields.Requirement,
+			fields.Nonce,
+			fields.ChallengedAt,
+			fields.ExpiresAt,
+		)
+	} else {
+		recomputed = CanonicalIntentPayload(
+			expected.Target,
+			expected.ActionType,
+			receipt.ActionDescription,
+			expected.Params,
+			*receipt.Requester,
+			*fields.Requirement,
+			fields.Nonce,
+			fields.ExpiresAt,
+		)
+	}
 
 	if recomputed != receipt.CanonicalPayload {
 		return VerifyResult{OK: false, Reason: "target/params/actionType do not match what was approved"}
@@ -395,7 +665,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	verified := map[string]bool{}
 	var failures []string
 	for _, w := range witnesses {
-		cands, reason := expected.Approvers.candidates(w.SignerDID)
+		cands, reason := expected.Approvers.candidatesRestricted(w.SignerDID, delegatedTo)
 		if reason != "" {
 			failures = append(failures, reason)
 			continue
@@ -431,7 +701,13 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		verified[matched] = true
 	}
 
+	// Under a delegation the quorum is the DELEGATED one. Already checked to equal the offline payload's
+	// signed RequiredApprovals, so this is the same number by a different route — stated explicitly so
+	// the substitution is visible where it takes effect.
 	required := fields.Requirement.RequiredApprovals
+	if delegatedQuorum > 0 {
+		required = delegatedQuorum
+	}
 	if required < 1 {
 		required = 1
 	}
@@ -444,6 +720,189 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			"quorum not met: %d of %d required approver signatures verified%s", len(verified), required, detail)}
 	}
 	return VerifyResult{OK: true}
+}
+
+// VerifyDelegation verifies a DELEGATION (DIV §5a.6 step 1) — a statement, signed in advance by the
+// ordinary quorum, naming local operators who may approve one pre-declared action while the gateway is
+// unreachable.
+//
+// Deliberately a SEPARATE function from VerifyApprovalReceipt, which refuses this payload type
+// outright. A delegation authorizes nothing, and the only way to keep that true structurally is to make
+// it impossible to hand one to the approval verifier and get an OK back. What you get here is a
+// VerifiedDelegation — an input to a later approval check, never a substitute for one.
+//
+// expected.Approvers MUST be the ORDINARY approver set, not the delegated operators: the point of the
+// check is that the people entitled to approve this action are the ones who signed away that
+// entitlement.
+func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOptions) (VerifyResult, *VerifiedDelegation) {
+	if receipt.CanonicalPayload == "" {
+		return VerifyResult{OK: false, Reason: "missing canonicalPayload"}, nil
+	}
+	var fields canonicalFields
+	if err := json.Unmarshal([]byte(receipt.CanonicalPayload), &fields); err != nil {
+		return VerifyResult{OK: false, Reason: "canonicalPayload is not valid JSON"}, nil
+	}
+	if fields.V == nil || *fields.V != DivVersion {
+		return VerifyResult{OK: false, Reason: "unsupported DIV payload version"}, nil
+	}
+	if fields.Type != DivDelegationType {
+		return VerifyResult{OK: false, Reason: "payload is not a div-delegation"}, nil
+	}
+	if len(fields.DelegatedTo) == 0 {
+		return VerifyResult{OK: false, Reason: "delegation is missing a valid delegatedTo set"}, nil
+	}
+	if fields.DelegatedQuorum == nil || *fields.DelegatedQuorum < 1 {
+		return VerifyResult{OK: false, Reason: "delegation is missing a valid delegatedQuorum"}, nil
+	}
+	// Deduplicate before the size check: a delegatedTo listing one operator three times would otherwise
+	// appear to support a 3-of-3 quorum that one person could satisfy alone.
+	seen := map[string]bool{}
+	var distinct []string
+	for _, d := range fields.DelegatedTo {
+		if d != "" && !seen[d] {
+			seen[d] = true
+			distinct = append(distinct, d)
+		}
+	}
+	if len(distinct) < *fields.DelegatedQuorum {
+		return VerifyResult{OK: false, Reason: fmt.Sprintf(
+			"delegation names %d distinct operator(s) but delegates a quorum of %d — it can never be satisfied",
+			len(distinct), *fields.DelegatedQuorum)}, nil
+	}
+	if fields.SealedAt == "" {
+		return VerifyResult{OK: false, Reason: "delegation is missing sealedAt"}, nil
+	}
+	if fields.ExpiresAt == "" {
+		return VerifyResult{OK: false, Reason: "delegation is missing expiresAt"}, nil
+	}
+	sealed, err := time.Parse(time.RFC3339, fields.SealedAt)
+	if err != nil {
+		return VerifyResult{OK: false, Reason: "sealedAt is not a valid RFC3339 timestamp"}, nil
+	}
+	expiry, err := time.Parse(time.RFC3339, fields.ExpiresAt)
+	if err != nil {
+		return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}, nil
+	}
+	window := expiry.Sub(sealed)
+	if window < 0 {
+		return VerifyResult{OK: false, Reason: "delegation expires before it was sealed"}, nil
+	}
+	if window > time.Duration(MaxDelegationWindowHours)*time.Hour {
+		return VerifyResult{OK: false, Reason: fmt.Sprintf(
+			"delegation window is %.1f hours, over the %d-hour maximum", window.Hours(), MaxDelegationWindowHours)}, nil
+	}
+	if receipt.Requester == nil {
+		return VerifyResult{OK: false, Reason: "delegation missing requester"}, nil
+	}
+	if fields.Requirement == nil {
+		return VerifyResult{OK: false, Reason: "delegation payload is missing the signed approval requirement"}, nil
+	}
+	if expected.Target == "" {
+		return VerifyResult{OK: false, Reason: "expected.Target is required — it must be YOUR target identifier, asserted independently of the delegation (DIV Target Isolation)"}, nil
+	}
+
+	recomputed := CanonicalDelegationPayload(
+		expected.Target,
+		expected.ActionType,
+		receipt.ActionDescription,
+		expected.Params,
+		*receipt.Requester,
+		*fields.Requirement,
+		fields.DelegatedTo,
+		*fields.DelegatedQuorum,
+		fields.Nonce,
+		fields.SealedAt,
+		fields.ExpiresAt,
+	)
+	if recomputed != receipt.CanonicalPayload {
+		return VerifyResult{OK: false, Reason: "target/params/actionType do not match what was delegated"}, nil
+	}
+
+	if !opts.AllowExpired {
+		now := opts.AsOf
+		if now.IsZero() {
+			now = time.Now()
+		}
+		skew := DefaultClockSkewSeconds
+		if opts.ClockSkewSeconds != nil {
+			skew = *opts.ClockSkewSeconds
+		}
+		if now.After(expiry.Add(time.Duration(skew) * time.Second)) {
+			return VerifyResult{OK: false, Reason: "delegation has expired (set AllowExpired for audit re-verification)"}, nil
+		}
+	}
+	if receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
+		return VerifyResult{OK: false, Reason: "a delegation cannot be auto-approved — delegating approval authority requires human signatures"}, nil
+	}
+
+	witnesses := witnessesOf(receipt)
+	if len(witnesses) == 0 {
+		return VerifyResult{OK: false, Reason: "delegation missing signature material"}, nil
+	}
+	verified := map[string]bool{}
+	var failures []string
+	for _, w := range witnesses {
+		cands, reason := expected.Approvers.candidates(w.SignerDID)
+		if reason != "" {
+			failures = append(failures, reason)
+			continue
+		}
+		matched := ""
+		last := "signature does not verify against any trusted approver key"
+		for _, c := range cands {
+			if why := verifyWitness(w, c[0], receipt, opts); why == "" {
+				matched = c[1]
+				break
+			} else {
+				last = why
+			}
+		}
+		if matched == "" {
+			failures = append(failures, last)
+			continue
+		}
+		if fields.Requirement.RequireHardwareKey && (w.SigAlg == nil || *w.SigAlg != "WEBAUTHN") {
+			failures = append(failures, fmt.Sprintf(
+				"signer %s used a bare key, but the signed policy requires a hardware-backed WebAuthn credential", w.SignerDID))
+			continue
+		}
+		if fields.Requirement.RequesterCannotApprove && w.SignerDID == receipt.Requester.DID {
+			failures = append(failures, fmt.Sprintf(
+				"four-eyes: requester %s cannot delegate to themselves", w.SignerDID))
+			continue
+		}
+		verified[matched] = true
+	}
+	required := fields.Requirement.RequiredApprovals
+	if required < 1 {
+		required = 1
+	}
+	if len(verified) < required {
+		detail := ""
+		if len(failures) > 0 {
+			detail = " (" + strings.Join(failures, "; ") + ")"
+		}
+		return VerifyResult{OK: false, Reason: fmt.Sprintf(
+			"delegation quorum not met: %d of %d required approver signatures verified%s", len(verified), required, detail)}, nil
+	}
+
+	signers := make([]string, 0, len(verified))
+	for k := range verified {
+		signers = append(signers, k)
+	}
+	sort.Strings(signers)
+	return VerifyResult{OK: true}, &VerifiedDelegation{
+		// The DEDUPLICATED set: this is what gets enforced against witness DIDs later, and a duplicate
+		// entry must not create the illusion of a larger eligible pool.
+		DelegatedTo:     distinct,
+		DelegatedQuorum: *fields.DelegatedQuorum,
+		Target:          expected.Target,
+		ActionType:      expected.ActionType,
+		Params:          expected.Params,
+		Nonce:           fields.Nonce,
+		Signers:         signers,
+		ExpiresAt:       fields.ExpiresAt,
+	}
 }
 
 // witnessesOf normalizes a receipt to a witness list: Signatures if present, else the
