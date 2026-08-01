@@ -10,10 +10,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	verify "github.com/intyga-dev/sdk-go/verify"
@@ -66,6 +68,15 @@ func NewClient(opts ClientOptions) *Client {
 
 // AuthorizeOptions carries the structured, WYSIWYS-bound details of an approval request.
 type AuthorizeOptions struct {
+	// Target identifies the relying party / execution environment this approval is bound to
+	// (DIV §3 Invariant 5, Target Isolation). REQUIRED, and asserted from YOUR own identity.
+	//
+	// Leaving it empty is not neutral: the gateway defaults a missing target to the literal
+	// "global", so the signed intent binds no environment and an approval minted for this service
+	// verifies at every other relying party that also asserts "global". That is exactly the
+	// cross-service replay Target Isolation exists to prevent, which is why this is rejected
+	// client-side rather than quietly defaulted.
+	Target string
 	// ActionType is the action identifier, e.g. "wire_transfer". Bound into the signed payload.
 	ActionType string
 	// Params are the exact structured variables that will execute — displayed in the wallet AND signed.
@@ -148,7 +159,12 @@ func (c *Client) Authorize(ctx context.Context, actionDescription string, opts A
 	if params == nil {
 		params = map[string]interface{}{}
 	}
+	if strings.TrimSpace(opts.Target) == "" {
+		return out, errors.New("intyga: AuthorizeOptions.Target is required (DIV Target Isolation): " +
+			"name the relying party / execution environment this approval is bound to")
+	}
 	body := map[string]interface{}{
+		"target":            opts.Target,
 		"actionDescription": actionDescription,
 		"actionType":        opts.ActionType,
 		"params":            params,
@@ -164,13 +180,22 @@ func (c *Client) Authorize(ctx context.Context, actionDescription string, opts A
 
 // Consume performs execution-time re-binding: after APPROVED, call this immediately before running the
 // action so the gateway confirms the approved signature matches the exact instruction and marks it single-use.
-func (c *Client) Consume(ctx context.Context, nonce, actionType string, params map[string]interface{}) (ConsumeResult, error) {
+//
+// target is REQUIRED by the gateway's authorizationConsume schema. Omitting it was a 400 on every
+// call, which made single-use redemption unreachable from this SDK entirely: the challenge stayed
+// APPROVED rather than CONSUMED, and stayed replayable by any holder of the same token until it
+// expired naturally.
+func (c *Client) Consume(ctx context.Context, nonce, target, actionType string, params map[string]interface{}) (ConsumeResult, error) {
 	var out ConsumeResult
 	if params == nil {
 		params = map[string]interface{}{}
 	}
+	if strings.TrimSpace(target) == "" {
+		return out, errors.New("intyga: Consume requires the same target the approval was bound to")
+	}
 	body := map[string]interface{}{
 		"nonce":      nonce,
+		"target":     target,
 		"actionType": actionType,
 		"params":     params,
 	}
@@ -214,11 +239,13 @@ func (c *Client) RequireApproval(ctx context.Context, actionDescription string, 
 		interval = 2 * time.Second
 	}
 
-	authRes, err := c.Authorize(ctx, actionDescription, AuthorizeOptions{
-		ActionType:     opts.ActionType,
-		Params:         opts.Params,
-		TimeoutSeconds: int((timeout + time.Second - 1) / time.Second), // ceil to seconds
-	})
+	// Forward the caller's options wholesale and override only the timeout. Rebuilding this struct
+	// field-by-field silently drops anything added to AuthorizeOptions later — which is how Target
+	// would have gone missing here even after being made required.
+	authOpts := opts.AuthorizeOptions
+	authOpts.TimeoutSeconds = int((timeout + time.Second - 1) / time.Second) // ceil to seconds
+
+	authRes, err := c.Authorize(ctx, actionDescription, authOpts)
 	if err != nil {
 		return ApprovalResult{}, err
 	}

@@ -50,6 +50,7 @@ func TestRequireApprovalHappyPath(t *testing.T) {
 
 	res, err := client.RequireApproval(ctx, "Wire $5,000 to Acme Corp", RequireApprovalOptions{
 		AuthorizeOptions: AuthorizeOptions{
+			Target:     "prod-payments",
 			ActionType: "wire_transfer",
 			Params:     map[string]interface{}{"to": "Acme Corp", "amount": 5000},
 		},
@@ -82,7 +83,8 @@ func TestAuthorizeDeniedStopsPolling(t *testing.T) {
 
 	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "t"})
 	res, err := client.RequireApproval(context.Background(), "delete prod", RequireApprovalOptions{
-		Interval: 10 * time.Millisecond,
+		AuthorizeOptions: AuthorizeOptions{Target: "prod-db"},
+		Interval:         10 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatalf("RequireApproval: %v", err)
@@ -128,18 +130,64 @@ func TestConsumeRebinding(t *testing.T) {
 		if body["nonce"] != "n_1" {
 			t.Errorf("unexpected nonce: %v", body["nonce"])
 		}
+		// The gateway's authorizationConsume schema requires target, so a mock that accepts any body
+		// is not testing the contract. This omission used to 400 every Consume call in production
+		// while this test stayed green — the reason it went unnoticed for so long.
+		if body["target"] != "prod-payments" {
+			t.Errorf("consume body must carry the bound target, got %v", body["target"])
+		}
+		if body["actionType"] != "wire_transfer" {
+			t.Errorf("unexpected actionType: %v", body["actionType"])
+		}
 		writeJSON(w, map[string]interface{}{"ok": true})
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
 	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "t"})
-	out, err := client.Consume(context.Background(), "n_1", "wire_transfer", map[string]interface{}{"amount": 5000})
+	out, err := client.Consume(context.Background(), "n_1", "prod-payments", "wire_transfer", map[string]interface{}{"amount": 5000})
 	if err != nil {
 		t.Fatalf("Consume: %v", err)
 	}
 	if !out.OK {
 		t.Fatalf("expected ok, got %+v", out)
+	}
+}
+
+// DIV §3 Invariant 5: an approval that names no target binds no execution environment, and the
+// gateway silently defaults a missing one to "global" — so refusing client-side is the only place
+// the caller finds out.
+func TestTargetIsRequired(t *testing.T) {
+	client := NewClient(ClientOptions{GatewayURL: "http://127.0.0.1:1", Token: "t"})
+
+	if _, err := client.Authorize(context.Background(), "wire", AuthorizeOptions{ActionType: "wire"}); err == nil {
+		t.Fatal("Authorize accepted an empty Target; the gateway would have signed target=global")
+	}
+	if _, err := client.Consume(context.Background(), "n_1", "  ", "wire", nil); err == nil {
+		t.Fatal("Consume accepted a blank target; the gateway would have rejected it with a 400")
+	}
+}
+
+// The authorize request must actually carry the target through to the wire, not merely accept it.
+func TestAuthorizeSendsTarget(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["target"] != "prod-payments" {
+			t.Errorf("authorize body must carry the target, got %v", body["target"])
+		}
+		writeJSON(w, map[string]interface{}{"nonce": "n_1", "status": "PENDING"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	if _, err := client.Authorize(context.Background(), "Wire $5,000", AuthorizeOptions{
+		Target:     "prod-payments",
+		ActionType: "wire_transfer",
+	}); err != nil {
+		t.Fatalf("Authorize: %v", err)
 	}
 }
 

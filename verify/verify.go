@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"sort"
 	"strconv"
@@ -42,6 +43,15 @@ const (
 	// MaxDelegationWindowHours caps a delegation's window (DIV §5a.6). Hours, not weeks: a delegation
 	// cannot be recalled from a relying party that is offline.
 	MaxDelegationWindowHours = 72
+	// MaxWitnesses caps the witness list either verifier will process. A DIV quorum is single
+	// digits — this is a denial-of-service bound, not a policy limit, because verification runs in
+	// the relying party's own process on an attacker-supplied receipt immediately before an
+	// irreversible action. Mirrors MAX_WITNESSES in the TS reference, where a 20,000-witness
+	// receipt measured 3.6 seconds of blocked event loop and a 1.16 MB failure string.
+	MaxWitnesses = 64
+	// maxReportedFailures caps how many per-witness failure reasons are folded into a returned
+	// Reason string; the rest are elided as "+N more".
+	maxReportedFailures = 8
 )
 
 // RequesterAttestation represents the workload identity attestation.
@@ -253,6 +263,14 @@ type ApprovalWitness struct {
 type VerifyResult struct {
 	OK     bool   `json:"ok"`
 	Reason string `json:"reason,omitempty"`
+	// AutoApproved reports that the receipt was pre-approved by policy and carries no human
+	// signature, on both the accepted and the refused path. Mirrors the TypeScript reference so a
+	// caller can distinguish "no human approved this" from an ordinary verification failure.
+	AutoApproved bool `json:"autoApproved,omitempty"`
+	// Signers lists the distinct approver IDENTITIES whose signatures verified, sorted, on the
+	// accepted signature path only. Mirrors the TS reference's `signers`. Empty for AUTO_APPROVED —
+	// no human signed — and on every refusal.
+	Signers []string `json:"signers,omitempty"`
 }
 
 // utf16Less compares two strings by UTF-16 code units (matching JS localeCompare/sort).
@@ -272,35 +290,55 @@ func utf16Less(a, b string) bool {
 }
 
 // StableStringify recursively serializes a Go data structure into deterministic JSON with UTF-16 sorted keys.
-func StableStringify(v interface{}) string {
+//
+// It REFUSES any number whose canonical form could diverge across the TS/Go/Rust/Python ports —
+// NaN/±Inf, negative zero, nonzero |x| >= 1e16, and nonzero non-integer |x| < 1e-4 — mirroring
+// isPortableNumber in @intyga/mcp-schemas and the strict canonicalizer in @intyga/verify. Such a
+// value serializes one way in one port and another way elsewhere (JS switches to exponent notation
+// at different thresholds than Go and Python; serde_json prints -0.0 with a decimal point), so
+// bytes signed over it would fail verification in another port and read as tampering there.
+// Refusing up front, with a reason that names the number, is the only fail-closed option.
+func StableStringify(v interface{}) (string, error) {
 	if v == nil {
-		return "null"
+		return "null", nil
 	}
 	switch val := v.(type) {
 	case bool:
 		if val {
-			return "true"
+			return "true", nil
 		}
-		return "false"
+		return "false", nil
 	case string:
-		b, _ := json.Marshal(val)
-		return string(b)
+		// MUST NOT use encoding/json for strings: it escapes <, > and & (SetEscapeHTML) plus
+		// U+2028/U+2029 (not configurable at all), none of which JSON.stringify or RFC 8785 escape.
+		// Any target, display, DID or param containing one of those five characters recomputed to
+		// different bytes here than in the TS/Rust/Python ports, and this verifier reported a
+		// perfectly valid approval as tampering.
+		return jsMarshalString(val), nil
 	case float64:
-		if val == float64(int64(val)) {
-			return strconv.FormatInt(int64(val), 10)
+		if err := checkPortableFloat(val); err != nil {
+			return "", err
 		}
-		b, _ := json.Marshal(val)
-		return string(b)
+		if val == float64(int64(val)) {
+			// Safe: checkPortableFloat guarantees |val| < 1e16, far inside int64 range. Before that
+			// guard existed this cast silently overflowed above 2^63.
+			return strconv.FormatInt(int64(val), 10), nil
+		}
+		return jsonMarshalNoEscape(val), nil
 	case int:
-		return strconv.Itoa(val)
+		return portableInt(int64(val))
 	case int64:
-		return strconv.FormatInt(val, 10)
+		return portableInt(val)
 	case []interface{}:
 		items := make([]string, len(val))
 		for i, x := range val {
-			items[i] = StableStringify(x)
+			s, err := StableStringify(x)
+			if err != nil {
+				return "", err
+			}
+			items[i] = s
 		}
-		return "[" + strings.Join(items, ",") + "]"
+		return "[" + strings.Join(items, ",") + "]", nil
 	case map[string]interface{}:
 		keys := make([]string, 0, len(val))
 		for k := range val {
@@ -311,19 +349,55 @@ func StableStringify(v interface{}) string {
 		})
 		parts := make([]string, len(keys))
 		for i, k := range keys {
-			kB, _ := json.Marshal(k)
-			parts[i] = fmt.Sprintf("%s:%s", string(kB), StableStringify(val[k]))
+			s, err := StableStringify(val[k])
+			if err != nil {
+				return "", err
+			}
+			// Object KEYS need the same treatment as values — a key containing "&" is just as
+			// divergent as a value containing one.
+			parts[i] = fmt.Sprintf("%s:%s", jsMarshalString(k), s)
 		}
-		return "{" + strings.Join(parts, ",") + "}"
+		return "{" + strings.Join(parts, ",") + "}", nil
 	default:
-		b, _ := json.Marshal(val)
-		return string(b)
+		return jsonMarshalNoEscape(val), nil
 	}
+}
+
+// checkPortableFloat refuses a float64 whose canonical serialization differs between the language
+// ports. The rules mirror the TS reference (NonCanonicalValue in @intyga/verify): reject NaN/±Inf,
+// negative zero, nonzero |x| >= 1e16, and nonzero non-integer |x| < 1e-4.
+func checkPortableFloat(val float64) error {
+	if math.IsNaN(val) || math.IsInf(val, 0) {
+		return errors.New("NaN/Infinity is not JSON")
+	}
+	if val == 0 && math.Signbit(val) {
+		return errors.New("-0 does not serialize portably across verifiers")
+	}
+	abs := math.Abs(val)
+	if val != 0 && abs >= 1e16 {
+		return fmt.Errorf("%v is outside the portable range (|x| < 1e16)", val)
+	}
+	if val != 0 && val != math.Trunc(val) && abs < 1e-4 {
+		return fmt.Errorf("%v is outside the portable float range (1e-4 ≤ |x| < 1e16)", val)
+	}
+	return nil
+}
+
+// portableInt serializes an integer under the same |x| < 1e16 bound as floats. This branch exists
+// for caller-constructed maps only (JSON decoding always yields float64), and it MUST enforce the
+// bound too: every TS number is a float64, so an int64(1e17) that Go serialized exactly would sign
+// bytes the TS reference can never produce — the exact drift the bound exists to prevent.
+func portableInt(val int64) (string, error) {
+	if val >= 1e16 || val <= -1e16 {
+		return "", fmt.Errorf("%d is outside the portable range (|x| < 1e16)", val)
+	}
+	return strconv.FormatInt(val, 10), nil
 }
 
 // CanonicalIntentPayload builds a byte-identical DIV Intent Payload (docs/DIV.md v1). It builds the
 // full object and serializes it with StableStringify (strict RFC 8785 JCS — every key sorted). Do NOT
-// hand-template key order; the sort is the contract.
+// hand-template key order; the sort is the contract. Errors only when params carry a value
+// StableStringify refuses (a non-portable number).
 func CanonicalIntentPayload(
 	target string,
 	actionType string,
@@ -333,7 +407,7 @@ func CanonicalIntentPayload(
 	requirement ApprovalRequirement,
 	nonce string,
 	expiresAt string,
-) string {
+) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	obj := map[string]interface{}{
 		"v":           DivVersion,
@@ -398,7 +472,7 @@ func CanonicalOfflineIntentPayload(
 	nonce string,
 	challengedAt string,
 	expiresAt string,
-) string {
+) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	return StableStringify(map[string]interface{}{
 		"v":            DivVersion,
@@ -433,7 +507,7 @@ func CanonicalDelegationPayload(
 	nonce string,
 	sealedAt string,
 	expiresAt string,
-) string {
+) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	delegates := append([]string(nil), delegatedTo...)
 	sort.Strings(delegates)
@@ -527,17 +601,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: "receipt is for a different challenge"}
 	}
 
-	if receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
-		// An offline approval with no human signature is a contradiction: the entire premise is that
-		// humans signed out of band, so AllowAutoApproved must not rescue it.
-		if offline {
-			return VerifyResult{OK: false, Reason: "an offline approval cannot be auto-approved — there is no human signature to verify"}
-		}
-		if !opts.AllowAutoApproved {
-			return VerifyResult{OK: false, Reason: "AUTO_APPROVED receipts are refused by default"}
-		}
-		return VerifyResult{OK: true}
-	}
+	// NOTE: the AUTO_APPROVED decision deliberately does NOT live here. Accepting it before the
+	// canonical payload has been recomputed would attest a receipt on the strength of a matching
+	// nonce alone — see the block after the expiry check below.
 
 	if receipt.Requester == nil {
 		return VerifyResult{OK: false, Reason: "receipt missing requester"}
@@ -561,15 +627,33 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		if err != nil {
 			return VerifyResult{OK: false, Reason: "challengedAt is not a valid RFC3339 timestamp"}
 		}
-		if expiry, err := time.Parse(time.RFC3339, fields.ExpiresAt); err == nil {
-			window := expiry.Sub(challenged)
-			if window < 0 {
-				return VerifyResult{OK: false, Reason: "offline proof expires before it was challenged"}
-			}
-			if window > time.Duration(MaxOfflineWindowMinutes)*time.Minute {
-				return VerifyResult{OK: false, Reason: fmt.Sprintf(
-					"offline window is %.1f minutes, over the %d-minute maximum", window.Minutes(), MaxOfflineWindowMinutes)}
-			}
+		// An unparseable `expiresAt` must be refused HERE rather than skipping the window cap and
+		// relying on the expiry check further down — that check is disabled by AllowExpired, so the
+		// `AllowOffline + AllowExpired` combination (the documented forensic re-verification mode, and
+		// the only mode under which an offline proof is examined at all) left the cap unenforced on a
+		// proof whose window could not be computed at all.
+		//
+		// `expiresAt` is inside the signed bytes, but an offline proof is minted by whoever constructs
+		// it and the verifier reconstructs the payload from the receipt's OWN expiresAt, so any string
+		// round-trips. Measured before this fix: a 10-year window passed with OK=true against a
+		// 60-minute cap. DIV §5a.3 makes the window the entire revocation story for an offline proof —
+		// an offline relying party has no channel to recall one — so an unbounded window turns a
+		// 60-minute incident credential into a permanent bearer capability for that action.
+		//
+		// This mirrors packages/verify/src/index.ts (the TS reference), where the same fix landed
+		// first. DIV.md declares expiresAt RFC3339 UTC, so refusing a non-conformant one is correct
+		// behaviour rather than a compatibility risk.
+		expiry, err := time.Parse(time.RFC3339, fields.ExpiresAt)
+		if err != nil {
+			return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}
+		}
+		window := expiry.Sub(challenged)
+		if window < 0 {
+			return VerifyResult{OK: false, Reason: "offline proof expires before it was challenged"}
+		}
+		if window > time.Duration(MaxOfflineWindowMinutes)*time.Minute {
+			return VerifyResult{OK: false, Reason: fmt.Sprintf(
+				"offline window is %.1f minutes, over the %d-minute maximum", window.Minutes(), MaxOfflineWindowMinutes)}
 		}
 		// A hardware-key policy CANNOT be satisfied offline (DIV §5a.3 step 4). WebAuthn needs a secure
 		// context and an RP ID an offline signing surface will not match, so an offline witness is always
@@ -592,7 +676,18 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		if d.ActionType != expected.ActionType {
 			return VerifyResult{OK: false, Reason: "the delegation was issued for a different actionType"}
 		}
-		if StableStringify(d.Params) != StableStringify(expected.Params) {
+		delegationParams, dErr := StableStringify(d.Params)
+		executingParams, eErr := StableStringify(expected.Params)
+		if dErr != nil || eErr != nil {
+			cause := dErr
+			if cause == nil {
+				cause = eErr
+			}
+			// A non-portable number, not a mismatch — say so, rather than sending the caller
+			// hunting for a tampering that isn't there.
+			return VerifyResult{OK: false, Reason: "params are not canonicalizable: " + cause.Error()}
+		}
+		if delegationParams != executingParams {
 			return VerifyResult{OK: false, Reason: "the delegation was issued for different params"}
 		}
 		// The offline payload's signed quorum must equal the delegated one, so the operators signed the
@@ -607,8 +702,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	}
 
 	var recomputed string
+	var recomputeErr error
 	if offline {
-		recomputed = CanonicalOfflineIntentPayload(
+		recomputed, recomputeErr = CanonicalOfflineIntentPayload(
 			expected.Target,
 			expected.ActionType,
 			receipt.ActionDescription,
@@ -620,7 +716,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			fields.ExpiresAt,
 		)
 	} else {
-		recomputed = CanonicalIntentPayload(
+		recomputed, recomputeErr = CanonicalIntentPayload(
 			expected.Target,
 			expected.ActionType,
 			receipt.ActionDescription,
@@ -630,6 +726,12 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			fields.Nonce,
 			fields.ExpiresAt,
 		)
+	}
+	if recomputeErr != nil {
+		// Almost always expected.Params carrying a non-portable number (see StableStringify). This
+		// reason is deliberately DISTINCT from the mismatch below: reporting it as "do not match"
+		// would send an operator chasing a tampering that isn't there.
+		return VerifyResult{OK: false, Reason: "expected.Params is not canonicalizable: " + recomputeErr.Error()}
 	}
 
 	if recomputed != receipt.CanonicalPayload {
@@ -655,9 +757,37 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		}
 	}
 
+	// A policy AUTO_APPROVED receipt carries NO human signature, so there is nothing to verify
+	// cryptographically and a relying party must opt in. Opting in waives the SIGNATURE requirement —
+	// it does not waive DIV §5 steps 8 and 9. This check therefore sits AFTER the canonical payload
+	// comparison and the expiry check, matching the TypeScript reference.
+	//
+	// It used to sit immediately after the nonce comparison. An agent holding a nonce could then get
+	// any trivial action auto-approved under it and present that receipt for a destructive call: the
+	// target, actionType and params were never examined, and a years-expired approval passed too.
+	if receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
+		// An offline approval with no human signature is a contradiction: the entire premise is that
+		// humans signed out of band, so AllowAutoApproved must not rescue it.
+		if offline {
+			return VerifyResult{OK: false, AutoApproved: true, Reason: "an offline approval cannot be auto-approved — there is no human signature to verify"}
+		}
+		if !opts.AllowAutoApproved {
+			return VerifyResult{OK: false, AutoApproved: true, Reason: "AUTO_APPROVED receipts are refused by default"}
+		}
+		return VerifyResult{OK: true, AutoApproved: true}
+	}
+
 	witnesses := witnessesOf(receipt)
 	if len(witnesses) == 0 {
 		return VerifyResult{OK: false, Reason: "missing signature or public key"}
+	}
+	// The witness list is attacker-supplied and every entry costs ECDSA verifications, in the
+	// relying party's own process, immediately before the action it gates. A real quorum is single
+	// digits; the TS reference measured a 20,000-witness receipt at 3.6s of blocked event loop and
+	// a 1.16 MB failure string. Bound it.
+	if len(witnesses) > MaxWitnesses {
+		return VerifyResult{OK: false, Reason: fmt.Sprintf(
+			"receipt carries %d witnesses, above the %d this verifier will process", len(witnesses), MaxWitnesses)}
 	}
 
 	// Count DISTINCT approvers whose signature verifies under a key we independently trust. Distinct
@@ -712,14 +842,16 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		required = 1
 	}
 	if len(verified) < required {
-		detail := ""
-		if len(failures) > 0 {
-			detail = " (" + strings.Join(failures, "; ") + ")"
-		}
 		return VerifyResult{OK: false, Reason: fmt.Sprintf(
-			"quorum not met: %d of %d required approver signatures verified%s", len(verified), required, detail)}
+			"quorum not met: %d of %d required approver signatures verified%s",
+			len(verified), required, foldFailures(failures))}
 	}
-	return VerifyResult{OK: true}
+	signers := make([]string, 0, len(verified))
+	for k := range verified {
+		signers = append(signers, k)
+	}
+	sort.Strings(signers)
+	return VerifyResult{OK: true, Signers: signers}
 }
 
 // VerifyDelegation verifies a DELEGATION (DIV §5a.6 step 1) — a statement, signed in advance by the
@@ -801,7 +933,7 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		return VerifyResult{OK: false, Reason: "expected.Target is required — it must be YOUR target identifier, asserted independently of the delegation (DIV Target Isolation)"}, nil
 	}
 
-	recomputed := CanonicalDelegationPayload(
+	recomputed, recomputeErr := CanonicalDelegationPayload(
 		expected.Target,
 		expected.ActionType,
 		receipt.ActionDescription,
@@ -814,6 +946,11 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		fields.SealedAt,
 		fields.ExpiresAt,
 	)
+	if recomputeErr != nil {
+		// A non-portable number in expected.Params, not tampering — the mismatch reason below would
+		// send an operator chasing a forgery that isn't there.
+		return VerifyResult{OK: false, Reason: "expected.Params is not canonicalizable: " + recomputeErr.Error()}, nil
+	}
 	if recomputed != receipt.CanonicalPayload {
 		return VerifyResult{OK: false, Reason: "target/params/actionType do not match what was delegated"}, nil
 	}
@@ -838,6 +975,12 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	witnesses := witnessesOf(receipt)
 	if len(witnesses) == 0 {
 		return VerifyResult{OK: false, Reason: "delegation missing signature material"}, nil
+	}
+	// Same denial-of-service bound as the approval path: the witness list is attacker-supplied and
+	// each entry costs ECDSA verifications in the relying party's own process.
+	if len(witnesses) > MaxWitnesses {
+		return VerifyResult{OK: false, Reason: fmt.Sprintf(
+			"delegation carries %d witnesses, above the %d this verifier will process", len(witnesses), MaxWitnesses)}, nil
 	}
 	verified := map[string]bool{}
 	var failures []string
@@ -878,12 +1021,9 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		required = 1
 	}
 	if len(verified) < required {
-		detail := ""
-		if len(failures) > 0 {
-			detail = " (" + strings.Join(failures, "; ") + ")"
-		}
 		return VerifyResult{OK: false, Reason: fmt.Sprintf(
-			"delegation quorum not met: %d of %d required approver signatures verified%s", len(verified), required, detail)}, nil
+			"delegation quorum not met: %d of %d required approver signatures verified%s",
+			len(verified), required, foldFailures(failures))}, nil
 	}
 
 	signers := make([]string, 0, len(verified))
@@ -903,6 +1043,27 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		Signers:         signers,
 		ExpiresAt:       fields.ExpiresAt,
 	}
+}
+
+// foldFailures renders at most maxReportedFailures per-witness reasons as a parenthesized detail
+// suffix, eliding the rest as "+N more". Folding every failure is what turned a long witness list
+// into a megabyte of error text in the TS reference; the leading reasons are the diagnostic ones
+// anyway.
+func foldFailures(failures []string) string {
+	if len(failures) == 0 {
+		return ""
+	}
+	shown := failures
+	elided := 0
+	if len(failures) > maxReportedFailures {
+		shown = failures[:maxReportedFailures]
+		elided = len(failures) - maxReportedFailures
+	}
+	detail := " (" + strings.Join(shown, "; ")
+	if elided > 0 {
+		detail += fmt.Sprintf("; +%d more", elided)
+	}
+	return detail + ")"
 }
 
 // witnessesOf normalizes a receipt to a witness list: Signatures if present, else the

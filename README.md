@@ -28,25 +28,42 @@ client := intyga.NewClient(intyga.ClientOptions{
 	ClientSecret: os.Getenv("INTYGA_CLIENT_SECRET"),
 })
 
-// Blocks until the human approves with their passkey / security key (or times out):
+params := map[string]interface{}{"cluster": "prod-db-1"}
+
+// Blocks until the human approves with their passkey / security key (or times out).
+// Target names THIS relying party. It is required: it is what stops an approval minted here from
+// being replayed at a different service (DIV §3 Invariant 5, Target Isolation).
 r, err := client.RequireApproval(context.Background(), "Delete production database",
 	intyga.RequireApprovalOptions{
 		AuthorizeOptions: intyga.AuthorizeOptions{
+			Target:     "prod-db-cluster-01",
 			ActionType: "wipe_production",
-			Params:     map[string]interface{}{"target": "prod-db-1"},
+			Params:     params,
 		},
 	})
 if err != nil || r.Status != intyga.StatusApproved {
 	log.Fatal("not authorized")
 }
 
-// Optional hard binding before executing — no Intyga secret involved:
+// Re-verify locally before executing. This is not optional under DIV §5: the relying party checks
+// the signature itself, against a key IT resolved. Approvers is required for exactly that reason —
+// a receipt checked against its own embedded key proves only that the receipt is self-consistent.
 res := verify.VerifyApprovalReceipt(*r.Receipt, verify.Expected{
-	Nonce: r.Nonce, ActionType: "wipe_production",
-	Params: map[string]interface{}{"target": "prod-db-1"},
+	Target:     "prod-db-cluster-01",
+	Nonce:      r.Nonce,
+	ActionType: "wipe_production",
+	Params:     params,
+	Approvers:  verify.ApproverTrustAnchor{PublicKeys: trustedApproverKeys()},
 }, verify.VerifyOptions{})
 if !res.OK {
 	log.Fatalf("refusing to proceed: %s", res.Reason)
+}
+
+// Redeem it exactly once, immediately before the action runs. Same target, same params: this is
+// what makes the approval single-use and re-binds it to what is about to execute.
+c, err := client.Consume(context.Background(), r.Nonce, "prod-db-cluster-01", "wipe_production", params)
+if err != nil || !c.OK {
+	log.Fatal("could not consume the approval")
 }
 ```
 
@@ -57,6 +74,8 @@ Works identically whether the token is a **human key** (backend/service) or an *
 - `NewClient(ClientOptions)` — construct a client (no I/O).
 - `RequireApproval(ctx, description, opts)` — create a challenge and block until resolved.
 - `Authorize` / `Status` / `Consume` — the individual steps (create, poll, execution-time re-bind).
+  `Authorize` requires `Target`; `Consume` takes `(ctx, nonce, target, actionType, params)` and must be
+  given the same target the approval was bound to.
 - `Verify(ctx, documentHash)` — public witness lookup.
 
 ## Also available in
