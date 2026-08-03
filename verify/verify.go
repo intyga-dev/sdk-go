@@ -268,7 +268,8 @@ type VerifyResult struct {
 	// caller can distinguish "no human approved this" from an ordinary verification failure.
 	AutoApproved bool `json:"autoApproved,omitempty"`
 	// Signers lists the distinct approver IDENTITIES whose signatures verified, sorted, on the
-	// accepted signature path only. Mirrors the TS reference's `signers`. Empty for AUTO_APPROVED —
+	// accepted signature path only. Sorted in every port (the TS reference returned insertion order
+	// until this was reconciled). Empty for AUTO_APPROVED —
 	// no human signed — and on every refusal.
 	Signers []string `json:"signers,omitempty"`
 }
@@ -439,7 +440,12 @@ func canonicalCommon(requester RequesterIdentity, requirement ApprovalRequiremen
 	// The SET is the policy: sort so two identical allowlists written in different orders produce
 	// identical signed bytes. Copy first — mutating the caller's slice would be a nasty surprise.
 	aaguids := append([]string(nil), requirement.AllowedAaguids...)
-	sort.Strings(aaguids)
+	// UTF-16 code units, not Go's native UTF-8 byte order — the same comparator the object keys
+	// use (utf16Less). The two orders differ only for non-BMP characters, which no AAGUID (hex
+	// UUID) or DID carries today, but a set sorted one way here and another way in the TS
+	// reference would produce different SIGNED BYTES, and nothing would catch it until a
+	// receipt failed at a customer's site. See DIV §4.3.3.
+	sort.Slice(aaguids, func(i, j int) bool { return utf16Less(aaguids[i], aaguids[j]) })
 	if aaguids == nil {
 		aaguids = []string{}
 	}
@@ -510,7 +516,12 @@ func CanonicalDelegationPayload(
 ) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	delegates := append([]string(nil), delegatedTo...)
-	sort.Strings(delegates)
+	// UTF-16 code units, not Go's native UTF-8 byte order — the same comparator the object keys
+	// use (utf16Less). The two orders differ only for non-BMP characters, which no AAGUID (hex
+	// UUID) or DID carries today, but a set sorted one way here and another way in the TS
+	// reference would produce different SIGNED BYTES, and nothing would catch it until a
+	// receipt failed at a customer's site. See DIV §4.3.3.
+	sort.Slice(delegates, func(i, j int) bool { return utf16Less(delegates[i], delegates[j]) })
 	if delegates == nil {
 		delegates = []string{}
 	}

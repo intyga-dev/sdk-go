@@ -2,7 +2,6 @@ package verify
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -245,10 +244,16 @@ func nullable(p *string) interface{} {
 
 // CanonicalPreimage: the 18-element JCS array. metadata is embedded as its own JCS string.
 //
-// Errors when metadata carries a number StableStringify refuses as non-portable. For such a value
-// the ports already compute DIFFERENT bytes from the same row (each language switches to exponent
-// notation at its own thresholds), so refusing to hash is the fail-closed alternative to emitting
-// a leaf hash no other verifier can reproduce.
+// Errors when metadata carries a number StableStringify refuses as non-portable (DEWP §4.3.1: the
+// portable range is |x| < 1e16 for integers, 1e-4 <= |x| < 1e16 otherwise, and never -0).
+//
+// A conformant producer never commits such a value — the reference producer refuses at ingestion
+// (assertPortableJson in packages/db) — so this path is reachable only for a foreign or legacy
+// leaf. The spec permits either response, and the ports deliberately differ: this one refuses,
+// which surfaces "I cannot canonicalize this" instead of a hash the TS/Rust/Python verifiers would
+// compute differently; those three best-effort match the TS reference and report a plain mismatch.
+// Neither is a bug in the other. What would be a bug is a port that computes a hash it believes the
+// others share when they do not.
 func CanonicalPreimage(row AuditLeaf) (string, error) {
 	var metadataStr string
 	if row.Metadata == nil {
@@ -356,7 +361,8 @@ func AnchorDigestHex(a AnchorInput) string {
 type SignedAnchor struct {
 	AnchorInput
 	KeyID string `json:"keyId"`
-	// Signature is base64 DER-encoded ECDSA over the RAW 32-byte anchor digest.
+	// Signature is base64 ECDSA over the RAW 32-byte anchor digest, in ASN.1/DER (what producers
+	// emit, DEWP §5.2) or raw IEEE-P1363 r‖s (what WebCrypto issuers can only emit).
 	Signature string `json:"signature"`
 }
 
@@ -367,9 +373,13 @@ type SignedAnchor struct {
 //
 // The signed MESSAGE is the raw 32-byte digest, never its 64-character hex text; ES256 then applies
 // its own SHA-256 internally. An implementation that signs the hex matches every digest vector and
-// still fails to interoperate — that is the §5.2 trap the shared signedAnchor vectors exist to
-// catch, which is also why the signature here is strictly DER (the encoding the TS reference emits)
-// rather than the DER-or-P1363 leniency of the receipt path.
+// still fails to interoperate — that is the §5.2 trap the shared signedAnchor vectors exist to catch.
+//
+// Both DER and raw P1363 are accepted, matching the receipt path and DEWP §5.2. This port used to be
+// DER-only on the deliberate reasoning that DER is what the TS producer emits — sound for OUR
+// anchors, wrong for the case §5.3 exists to serve: an INDEPENDENT issuer, which may well sign with
+// WebCrypto, and WebCrypto emits only P1363. Refusing those meant a genuine third-party anchor
+// counted toward quorum for a TS/Rust/Python relying party and read as an invalid signature here.
 func VerifyAnchorSignature(anchor SignedAnchor, spkiB64 string) bool {
 	if anchor.Algorithm != "ES256" {
 		return false
@@ -387,6 +397,5 @@ func VerifyAnchorSignature(anchor SignedAnchor, spkiB64 string) bool {
 		return false
 	}
 	digest := anchorDigest(anchor.AnchorInput)
-	hashed := sha256.Sum256(digest[:])
-	return ecdsa.VerifyASN1(pub, hashed[:], sig)
+	return verifyEcdsaSignature(pub, digest[:], sig)
 }
