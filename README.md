@@ -4,7 +4,7 @@ Gate any high-risk backend action behind a real human approval. The primitive is
 
 This package **bundles the offline verifier** (`github.com/intyga-dev/sdk-go/verify`), so you can request an approval *and* independently verify the receipt without adding a second dependency.
 
-> Status: **not yet published**. The standalone verifier also ships on its own as [`verify-go`](https://github.com/intyga-dev/verify-go).
+> The standalone verifier also ships on its own as [`verify-go`](https://github.com/intyga-dev/verify-go).
 
 ## Install
 

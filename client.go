@@ -1,6 +1,6 @@
 // Package intyga is the Go client for Intyga. The primitive is uniform: request a challenge → a human
-// approves on their wallet → poll until resolved. It works for AI agents, humans, and any backend
-// service; the only difference is which API key/token you hold.
+// approves with a passkey or security key → poll until resolved. It works for AI agents, humans, and
+// any backend service; the only difference is which API key/token you hold.
 //
 // Offline receipt verification lives in the standalone github.com/intyga-dev/sdk-go/verify package;
 // this client returns its ApprovalReceipt type so a relying party can re-verify what was signed.
@@ -79,7 +79,7 @@ type AuthorizeOptions struct {
 	Target string
 	// ActionType is the action identifier, e.g. "wire_transfer". Bound into the signed payload.
 	ActionType string
-	// Params are the exact structured variables that will execute — displayed in the wallet AND signed.
+	// Params are the exact structured variables that will execute — displayed to the approver AND signed.
 	Params map[string]interface{}
 	// TimeoutSeconds optionally overrides the server's default challenge TTL.
 	TimeoutSeconds int
@@ -228,7 +228,7 @@ type RequireApprovalOptions struct {
 const maxPollErrors = 5
 
 // RequireApproval is the core zero-trust gate: call it immediately before a high-risk action. It creates
-// the challenge and blocks until the human approves/denies on their wallet (or it times out or ctx is done).
+// the challenge and blocks until the human approves/denies with their passkey (or it times out or ctx is done).
 func (c *Client) RequireApproval(ctx context.Context, actionDescription string, opts RequireApprovalOptions) (ApprovalResult, error) {
 	timeout := opts.Timeout
 	if timeout <= 0 {
