@@ -68,11 +68,32 @@ type RequesterAttestation struct {
 // Offline checkability differs per field: RequiredApprovals and RequesterCannotApprove are fully
 // verifiable; RequireHardwareKey only partially (an assertion proves WebAuthn, not the authenticator
 // model); AllowedAaguids not at all (the AAGUID lives in registration data, never in an assertion).
+// SignerClass is partially checkable: a WEBAUTHN witness's UV flag corroborates a human ceremony,
+// an ES256 witness carries no class evidence — but the verifier's own rule is absolute: refuse any
+// value it does not recognize ("human" is the only class defined today, DIV §4.3.2).
 type ApprovalRequirement struct {
 	RequiredApprovals      int      `json:"requiredApprovals"`
 	RequireHardwareKey     bool     `json:"requireHardwareKey"`
 	AllowedAaguids         []string `json:"allowedAaguids"`
 	RequesterCannotApprove bool     `json:"requesterCannotApprove"`
+	SignerClass            string   `json:"signerClass"`
+}
+
+// knownSignerClasses are the signer classes this verifier can reason about (DIV §4.3.2). "human" is
+// the only class defined today.
+var knownSignerClasses = map[string]bool{"human": true}
+
+// checkSignerClass validates requirement.signerClass out of the signed bytes. FAIL CLOSED both ways:
+// an absent class predates (or dropped) the field, and an unrecognized class must never verify as if
+// it were human-approved — that is the entire point of putting the class in the signed bytes.
+func checkSignerClass(requirement ApprovalRequirement) (bool, string) {
+	if requirement.SignerClass == "" {
+		return false, "the signed requirement is missing signerClass (DIV §4.3.2)"
+	}
+	if !knownSignerClasses[requirement.SignerClass] {
+		return false, fmt.Sprintf("the signed requirement declares signerClass %q, which this verifier does not recognize — refusing rather than treating it as human-approved (DIV §4.3.2)", requirement.SignerClass)
+	}
+	return true, ""
 }
 
 // RequesterIdentity defines who requested the action.
@@ -457,6 +478,7 @@ func canonicalCommon(requester RequesterIdentity, requirement ApprovalRequiremen
 			"requireHardwareKey":     requirement.RequireHardwareKey,
 			"allowedAaguids":         aaguids,
 			"requesterCannotApprove": requirement.RequesterCannotApprove,
+			"signerClass":            requirement.SignerClass,
 		}
 }
 
@@ -627,6 +649,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	// circular: a forged value changes the string and fails the byte comparison below.
 	if fields.Requirement == nil {
 		return VerifyResult{OK: false, Reason: "receipt payload is missing the signed approval requirement"}
+	}
+	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
+		return VerifyResult{OK: false, Reason: reason}
 	}
 
 	// Offline proofs carry challengedAt so the validity WINDOW can be bounded here, not merely at mint.
@@ -939,6 +964,9 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	}
 	if fields.Requirement == nil {
 		return VerifyResult{OK: false, Reason: "delegation payload is missing the signed approval requirement"}, nil
+	}
+	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
+		return VerifyResult{OK: false, Reason: reason}, nil
 	}
 	if expected.Target == "" {
 		return VerifyResult{OK: false, Reason: "expected.Target is required — it must be YOUR target identifier, asserted independently of the delegation (DIV Target Isolation)"}, nil
