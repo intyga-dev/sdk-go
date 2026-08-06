@@ -84,6 +84,7 @@ Works identically whether the token is a **human key** (backend/service) or an *
 - TypeScript — [`@intyga/sdk`](https://github.com/intyga-dev/sdk)
 - Python — [`sdk-python`](https://github.com/intyga-dev/sdk-python)
 - Rust — [`sdk-rust`](https://github.com/intyga-dev/sdk-rust)
+- Java — [`sdk-java`](https://github.com/intyga-dev/sdk-java)
 
 ## License
 
