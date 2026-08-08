@@ -5,7 +5,7 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 
 ## [Unreleased]
 
-## [0.1.0]
+## [1.0.0]
 
 Initial public release.
 
