@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 )
 
 // ─── Minimal CBOR reader (COSE_Key only) ─────────────────────────────────────
@@ -182,6 +183,18 @@ func base64urlNoPad(b []byte) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
+// decodeBase64Flexible accepts both base64url — the DIV §4.4.2 wire form, which browsers and the
+// gateway emit unpadded — and standard base64 (legacy receipts, older vectors), padded or not. The
+// alphabets differ only in characters 62/63 (+/ vs -_), so normalizing is lossless and cannot make
+// an invalid encoding valid.
+func decodeBase64Flexible(s string) ([]byte, error) {
+	s = strings.NewReplacer("-", "+", "_", "/").Replace(s)
+	if m := len(s) % 4; m != 0 {
+		s += strings.Repeat("=", 4-m)
+	}
+	return base64.StdEncoding.DecodeString(s)
+}
+
 // verifyWebAuthnWitness pins the assertion to the expected origin and RP ID, confirms user
 // presence/verification, checks the challenge equals base64url(canonicalPayload), and verifies the
 // ES256 signature over authenticatorData ‖ SHA-256(clientDataJSON).
@@ -197,7 +210,7 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 		return "WebAuthn receipts require ExpectedOrigin and ExpectedRpID — without them an assertion from any relying party would verify"
 	}
 
-	clientDataBuf, err := base64.StdEncoding.DecodeString(*w.ClientDataJSON)
+	clientDataBuf, err := decodeBase64Flexible(*w.ClientDataJSON)
 	if err != nil {
 		return "invalid clientDataJSON base64"
 	}
@@ -230,7 +243,7 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 		return "clientDataJSON challenge does not match canonical payload"
 	}
 
-	authData, err := base64.StdEncoding.DecodeString(*w.AuthenticatorData)
+	authData, err := decodeBase64Flexible(*w.AuthenticatorData)
 	if err != nil {
 		return "invalid authenticatorData base64"
 	}
@@ -251,7 +264,7 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 	}
 
 	// The COSE key is parsed from the TRUSTED key, not the receipt's copy.
-	coseBuf, err := base64.StdEncoding.DecodeString(trustedKey)
+	coseBuf, err := decodeBase64Flexible(trustedKey)
 	if err != nil {
 		return "invalid trusted key base64"
 	}
@@ -259,7 +272,7 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 	if err != nil {
 		return err.Error()
 	}
-	sigBytes, err := base64.StdEncoding.DecodeString(w.Signature)
+	sigBytes, err := decodeBase64Flexible(w.Signature)
 	if err != nil {
 		return "invalid signature base64"
 	}

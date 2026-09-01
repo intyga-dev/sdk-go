@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	verify "github.com/intyga-dev/sdk-go/verify"
@@ -42,19 +43,33 @@ const (
 type ClientOptions struct {
 	GatewayURL string
 	// Token is a pre-minted bearer token (agent or human). If empty, ClientID/ClientSecret are exchanged.
+	// An explicit Token is used as-is: it is never re-exchanged, and a 401 on it is returned to the
+	// caller rather than retried, because there is no credential behind it to exchange again.
 	Token string
 	// ClientID / ClientSecret are exchanged for a bearer token via client-credentials when Token is empty.
+	// The exchanged token is cached and re-exchanged automatically shortly before the `expires_in` the
+	// gateway reported (see Token), so a long-lived Client keeps working across token lifetimes.
 	ClientID     string
 	ClientSecret string
 	// HTTPClient is optional; a sensible default with a 30s timeout is used when nil.
 	HTTPClient *http.Client
 }
 
-// Client talks to a Intyga gateway.
+// Client talks to a Intyga gateway. It is safe for concurrent use.
 type Client struct {
-	opts        ClientOptions
-	http        *http.Client
-	cachedToken string
+	opts ClientOptions
+	http *http.Client
+
+	// mu guards the token cache. It is held across the exchange itself so that concurrent first
+	// callers (or concurrent callers at refresh time) perform one exchange, not one each.
+	mu           sync.Mutex
+	cachedToken  string
+	cachedExpiry time.Time     // when the cached token expires; zero when the exchange reported no expires_in
+	cachedMargin time.Duration // how long before cachedExpiry the cache stops being served
+
+	// now is the clock the expiry check reads. It exists so tests can advance time without sleeping;
+	// it defaults to time.Now.
+	now func() time.Time
 }
 
 // NewClient constructs a Client. It does not perform any network I/O.
@@ -63,7 +78,21 @@ func NewClient(opts ClientOptions) *Client {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
 	}
-	return &Client{opts: opts, http: httpClient}
+	return &Client{opts: opts, http: httpClient, now: time.Now}
+}
+
+// maxRefreshMargin caps how early a token is re-exchanged ahead of its expiry. The margin is
+// min(maxRefreshMargin, expires_in/10): 60s for anything a gateway mints today, and proportionally
+// less for a very short-lived token so it is not refreshed on every call.
+const maxRefreshMargin = 60 * time.Second
+
+// refreshMargin returns how far ahead of expiry a token with the given lifetime is refreshed.
+func refreshMargin(ttl time.Duration) time.Duration {
+	margin := ttl / 10
+	if margin > maxRefreshMargin {
+		margin = maxRefreshMargin
+	}
+	return margin
 }
 
 // AuthorizeOptions carries the structured, WYSIWYS-bound details of an approval request.
@@ -118,11 +147,18 @@ type VerifyResult struct {
 }
 
 // Token resolves a bearer token: the provided one, a cached exchange, or a fresh client-credentials exchange.
+//
+// An exchanged token is served from the cache until min(60s, expires_in/10) before the expiry the
+// gateway reported in `expires_in`, then exchanged again. A response without a numeric `expires_in`
+// is cached for the life of the Client (the pre-refresh behaviour); a 401 from the gateway on such a
+// token is what invalidates it (see doJSON).
 func (c *Client) Token(ctx context.Context) (string, error) {
 	if c.opts.Token != "" {
 		return c.opts.Token, nil
 	}
-	if c.cachedToken != "" {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cachedToken != "" && (c.cachedExpiry.IsZero() || c.now().Before(c.cachedExpiry.Add(-c.cachedMargin))) {
 		return c.cachedToken, nil
 	}
 	if c.opts.ClientID == "" || c.opts.ClientSecret == "" {
@@ -144,12 +180,35 @@ func (c *Client) Token(ctx context.Context) (string, error) {
 	}
 	var data struct {
 		AccessToken string `json:"access_token"`
+		// Decoded separately below so a missing or non-numeric value means "no expiry known" rather
+		// than failing the whole exchange.
+		ExpiresIn json.RawMessage `json:"expires_in"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
 		return "", err
 	}
 	c.cachedToken = data.AccessToken
+	c.cachedExpiry = time.Time{}
+	c.cachedMargin = 0
+	var expiresIn float64
+	if len(data.ExpiresIn) > 0 && json.Unmarshal(data.ExpiresIn, &expiresIn) == nil && expiresIn > 0 {
+		ttl := time.Duration(expiresIn * float64(time.Second))
+		c.cachedExpiry = c.now().Add(ttl)
+		c.cachedMargin = refreshMargin(ttl)
+	}
 	return data.AccessToken, nil
+}
+
+// invalidateToken drops the cached token if it is still the one the caller saw fail. A token that
+// another goroutine has already replaced is left alone, so a stale 401 cannot discard a fresh exchange.
+func (c *Client) invalidateToken(failed string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cachedToken == failed {
+		c.cachedToken = ""
+		c.cachedExpiry = time.Time{}
+		c.cachedMargin = 0
+	}
 }
 
 // Authorize creates an approval challenge and returns its nonce and initial status.
@@ -291,38 +350,54 @@ func (c *Client) Verify(ctx context.Context, documentHash string) (VerifyResult,
 }
 
 // doJSON performs an authenticated JSON request and decodes the response into out.
+//
+// A 401 on an exchanged token (never on an explicit ClientOptions.Token) invalidates the cache and
+// retries exactly once with a fresh exchange — this covers clock skew against the proactive refresh
+// and a gateway that shortened its token lifetime under a running client. A second 401 is returned.
 func (c *Client) doJSON(ctx context.Context, method, path string, body interface{}, out interface{}) error {
-	token, err := c.Token(ctx)
-	if err != nil {
-		return err
-	}
-	var reader io.Reader
+	var buf []byte
 	if body != nil {
-		buf, err := json.Marshal(body)
+		var err error
+		buf, err = json.Marshal(body)
 		if err != nil {
 			return err
 		}
-		reader = bytes.NewReader(buf)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.opts.GatewayURL+path, reader)
-	if err != nil {
-		return err
+	retried := false
+	for {
+		token, err := c.Token(ctx)
+		if err != nil {
+			return err
+		}
+		var reader io.Reader
+		if body != nil {
+			reader = bytes.NewReader(buf)
+		}
+		req, err := http.NewRequestWithContext(ctx, method, c.opts.GatewayURL+path, reader)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("authorization", "Bearer "+token)
+		if body != nil {
+			req.Header.Set("content-type", "application/json")
+		}
+		res, err := c.http.Do(req)
+		if err != nil {
+			return err
+		}
+		respBody, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		if res.StatusCode == http.StatusUnauthorized && c.opts.Token == "" && !retried {
+			retried = true
+			c.invalidateToken(token)
+			continue
+		}
+		if res.StatusCode < 200 || res.StatusCode >= 300 {
+			return fmt.Errorf("%s %s failed: %d %s", method, path, res.StatusCode, string(respBody))
+		}
+		if out == nil {
+			return nil
+		}
+		return json.Unmarshal(respBody, out)
 	}
-	req.Header.Set("authorization", "Bearer "+token)
-	if body != nil {
-		req.Header.Set("content-type", "application/json")
-	}
-	res, err := c.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	respBody, _ := io.ReadAll(res.Body)
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return fmt.Errorf("%s %s failed: %d %s", method, path, res.StatusCode, string(respBody))
-	}
-	if out == nil {
-		return nil
-	}
-	return json.Unmarshal(respBody, out)
 }

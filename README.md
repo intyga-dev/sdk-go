@@ -79,6 +79,9 @@ Works identically whether the token is a **human key** (backend/service) or an *
   `Authorize` requires `Target`; `Consume` takes `(ctx, nonce, target, actionType, params)` and must be
   given the same target the approval was bound to.
 - `Verify(ctx, documentHash)` — public witness lookup.
+- Tokens exchanged from `ClientID`/`ClientSecret` are re-exchanged automatically shortly before the
+  gateway's `expires_in` (and once more on a 401), so a long-lived client needs no refresh logic of
+  its own; an explicit `Token` is used as-is.
 
 ## Also available in
 - TypeScript — [`@intyga/sdk`](https://github.com/intyga-dev/sdk)

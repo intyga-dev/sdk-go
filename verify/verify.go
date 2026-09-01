@@ -96,6 +96,35 @@ func checkSignerClass(requirement ApprovalRequirement) (bool, string) {
 	return true, ""
 }
 
+// invalidQuorumReason is the shared refusal text for a signed quorum below DIV §4.3.2's minimum.
+const invalidQuorumReason = "signed requirement.requiredApprovals must be an integer of at least 1 (DIV §4.3.2)"
+
+// checkQuorumMinimum enforces DIV §4.3.2: requiredApprovals is an integer ≥ 1. Stated as its own
+// refusal rather than clamped, because §5 step 7 rejects unless the counted identities are AT LEAST
+// this number — 0 is satisfied by counting nothing, so an unenforced minimum would attest an
+// envelope carrying no valid witness signature. (Non-integral values never reach here: the field
+// unmarshals into an int, so a fractional one fails the payload parse instead.)
+func checkQuorumMinimum(requirement ApprovalRequirement) (bool, string) {
+	if requirement.RequiredApprovals < 1 {
+		return false, invalidQuorumReason
+	}
+	return true, ""
+}
+
+// evaluationTime resolves the instant and skew tolerance every time-based check in this package
+// shares: expiry (DIV §6.2) and the forward-dating rule of §5a.3 rule 3.
+func evaluationTime(opts VerifyOptions) (time.Time, time.Duration) {
+	now := opts.AsOf
+	if now.IsZero() {
+		now = time.Now()
+	}
+	skew := DefaultClockSkewSeconds
+	if opts.ClockSkewSeconds != nil {
+		skew = *opts.ClockSkewSeconds
+	}
+	return now, time.Duration(skew) * time.Second
+}
+
 // RequesterIdentity defines who requested the action.
 type RequesterIdentity struct {
 	DID         string                `json:"did"`
@@ -320,6 +349,10 @@ func utf16Less(a, b string) bool {
 // at different thresholds than Go and Python; serde_json prints -0.0 with a decimal point), so
 // bytes signed over it would fail verification in another port and read as tampering there.
 // Refusing up front, with a reason that names the number, is the only fail-closed option.
+//
+// It also refuses any Go type outside the JSON shapes listed in the switch below. Go, unlike the
+// other ports, has no closed JSON value type, so a caller can hand this a float32, a uint64, a
+// struct or a map[string]string — none of which the port can canonicalize without guessing.
 func StableStringify(v interface{}) (string, error) {
 	if v == nil {
 		return "null", nil
@@ -351,6 +384,14 @@ func StableStringify(v interface{}) (string, error) {
 		return portableInt(int64(val))
 	case int64:
 		return portableInt(val)
+	case []string:
+		// The canonical builders hand this in directly (allowedAaguids, delegatedTo), so it must go
+		// through jsMarshalString like every other string rather than down the default branch.
+		items := make([]string, len(val))
+		for i, x := range val {
+			items[i] = jsMarshalString(x)
+		}
+		return "[" + strings.Join(items, ",") + "]", nil
 	case []interface{}:
 		items := make([]string, len(val))
 		for i, x := range val {
@@ -381,7 +422,16 @@ func StableStringify(v interface{}) (string, error) {
 		}
 		return "{" + strings.Join(parts, ",") + "}", nil
 	default:
-		return jsonMarshalNoEscape(val), nil
+		// REFUSE, never fall through to encoding/json. That package sorts object keys by UTF-8
+		// bytes rather than UTF-16 code units, escapes <, >, & and U+2028/U+2029, and serializes
+		// any integer width or float with no portable-range check — so a typed value canonicalized
+		// there produces bytes no other port can reproduce, and the receipt reads as tampering at
+		// the relying party. TS, Rust, Python and Java all fail closed on a value they cannot
+		// canonicalize; this is that choice.
+		return "", fmt.Errorf(
+			"%T cannot be canonicalized; convert it to a JSON value first (map[string]interface{}, []interface{}, []string, string, float64, int, int64, bool, nil)",
+			val,
+		)
 	}
 }
 
@@ -650,6 +700,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if fields.Requirement == nil {
 		return VerifyResult{OK: false, Reason: "receipt payload is missing the signed approval requirement"}
 	}
+	if ok, reason := checkQuorumMinimum(*fields.Requirement); !ok {
+		return VerifyResult{OK: false, Reason: reason}
+	}
 	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}
 	}
@@ -690,6 +743,14 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		if window > time.Duration(MaxOfflineWindowMinutes)*time.Minute {
 			return VerifyResult{OK: false, Reason: fmt.Sprintf(
 				"offline window is %.1f minutes, over the %d-minute maximum", window.Minutes(), MaxOfflineWindowMinutes)}
+		}
+		// The cap above bounds the window's WIDTH; this bounds its POSITION (DIV §5a.3 rule 3).
+		// Without it a proof challenged for a date years out, with a compliant 60-minute window,
+		// verifies today and keeps verifying until that date — the pre-signed bearer capability
+		// §5a.1 rejects. NOT gated on AllowExpired: that override re-examines a proof that WAS
+		// valid and has lapsed, and says nothing about one dated in the future.
+		if now, skew := evaluationTime(opts); challenged.After(now.Add(skew)) {
+			return VerifyResult{OK: false, Reason: "offline proof is challenged in the future (DIV §5a.3)"}
 		}
 		// A hardware-key policy CANNOT be satisfied offline (DIV §5a.3 step 4). WebAuthn needs a secure
 		// context and an RP ID an offline signing surface will not match, so an offline witness is always
@@ -780,15 +841,8 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		if err != nil {
 			return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}
 		}
-		now := opts.AsOf
-		if now.IsZero() {
-			now = time.Now()
-		}
-		skew := DefaultClockSkewSeconds
-		if opts.ClockSkewSeconds != nil {
-			skew = *opts.ClockSkewSeconds
-		}
-		if now.After(expiry.Add(time.Duration(skew) * time.Second)) {
+		now, skew := evaluationTime(opts)
+		if now.After(expiry.Add(skew)) {
 			return VerifyResult{OK: false, Reason: "proof has expired (set AllowExpired for audit re-verification)"}
 		}
 	}
@@ -874,9 +928,6 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if delegatedQuorum > 0 {
 		required = delegatedQuorum
 	}
-	if required < 1 {
-		required = 1
-	}
 	if len(verified) < required {
 		return VerifyResult{OK: false, Reason: fmt.Sprintf(
 			"quorum not met: %d of %d required approver signatures verified%s",
@@ -915,6 +966,12 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	}
 	if fields.Type != DivDelegationType {
 		return VerifyResult{OK: false, Reason: "payload is not a div-delegation"}, nil
+	}
+	// DIV §4.4.6: a Delegation REQUIRES an identity-associating anchor and MUST be refused under a
+	// key-set anchor — at seal verification too, not only when delegatedTo is enforced at use time.
+	// The sealing quorum names PEOPLE; in PublicKeys mode it would count credentials instead.
+	if len(expected.Approvers.PublicKeys) > 0 {
+		return VerifyResult{OK: false, Reason: "a delegation requires a DID-mode trust anchor (DIDs + ResolveKeys); a key-set anchor cannot associate identities (DIV §4.4.6)"}, nil
 	}
 	if len(fields.DelegatedTo) == 0 {
 		return VerifyResult{OK: false, Reason: "delegation is missing a valid delegatedTo set"}, nil
@@ -959,11 +1016,20 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		return VerifyResult{OK: false, Reason: fmt.Sprintf(
 			"delegation window is %.1f hours, over the %d-hour maximum", window.Hours(), MaxDelegationWindowHours)}, nil
 	}
+	// Position, not just width (DIV §5a.6 step 1, mirroring §5a.3 rule 3). A forward-dated sealedAt
+	// slides the 72-hour window arbitrarily far out, and §5a.8 names that cap as Delegation's ONLY
+	// mitigation. Unconditional, like the offline mirror: AllowExpired does not reach it.
+	if now, skew := evaluationTime(opts); sealed.After(now.Add(skew)) {
+		return VerifyResult{OK: false, Reason: "delegation is sealed in the future (DIV §5a.6)"}, nil
+	}
 	if receipt.Requester == nil {
 		return VerifyResult{OK: false, Reason: "delegation missing requester"}, nil
 	}
 	if fields.Requirement == nil {
 		return VerifyResult{OK: false, Reason: "delegation payload is missing the signed approval requirement"}, nil
+	}
+	if ok, reason := checkQuorumMinimum(*fields.Requirement); !ok {
+		return VerifyResult{OK: false, Reason: reason}, nil
 	}
 	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}, nil
@@ -995,15 +1061,8 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	}
 
 	if !opts.AllowExpired {
-		now := opts.AsOf
-		if now.IsZero() {
-			now = time.Now()
-		}
-		skew := DefaultClockSkewSeconds
-		if opts.ClockSkewSeconds != nil {
-			skew = *opts.ClockSkewSeconds
-		}
-		if now.After(expiry.Add(time.Duration(skew) * time.Second)) {
+		now, skew := evaluationTime(opts)
+		if now.After(expiry.Add(skew)) {
 			return VerifyResult{OK: false, Reason: "delegation has expired (set AllowExpired for audit re-verification)"}, nil
 		}
 	}
@@ -1056,9 +1115,6 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		verified[matched] = true
 	}
 	required := fields.Requirement.RequiredApprovals
-	if required < 1 {
-		required = 1
-	}
 	if len(verified) < required {
 		return VerifyResult{OK: false, Reason: fmt.Sprintf(
 			"delegation quorum not met: %d of %d required approver signatures verified%s",
