@@ -2,7 +2,11 @@ package verify
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -303,6 +307,7 @@ func LeafHash(row AuditLeaf) (string, error) {
 // inclusion-proof JSON Schema and by DEWP §3 invariant 3; a proof that cannot say where its leaf
 // sits does not establish inclusion.
 type InclusionProof struct {
+	Seq        *string           `json:"seq,omitempty"`
 	Leaf       string            `json:"leaf"`
 	BlockRoot  string            `json:"blockRoot"`
 	BlockProof []LedgerProofStep `json:"blockProof"`
@@ -360,16 +365,16 @@ func AnchorDigestHex(a AnchorInput) string {
 // SignedAnchor is an anchor plus its issuer's signature over the raw anchor digest (DEWP §5.2).
 type SignedAnchor struct {
 	AnchorInput
-	KeyID string `json:"keyId"`
+	KeyID    string  `json:"keyId"`
+	Kind     string  `json:"kind,omitempty"`
+	Evidence *string `json:"evidence,omitempty"`
 	// Signature is base64 ECDSA over the RAW 32-byte anchor digest, in ASN.1/DER (what producers
 	// emit, DEWP §5.2) or raw IEEE-P1363 r‖s (what WebCrypto issuers can only emit).
 	Signature string `json:"signature"`
 }
 
-// VerifyAnchorSignature verifies one anchor's ES256 signature against a base64 SPKI P-256 public
-// key the CALLER resolved from its own trust policy. Core Profile scope, deliberately: single
-// anchor, ES256 only — no Ed25519/RSA-PSS, and no §5.3 quorum or issuer-trust evaluation, so
-// `anchorVerified` still cannot be established by this port alone. Use the TS reference for those.
+// VerifyAnchorSignature verifies one ES256, Ed25519 or RSA-PSS anchor under a caller-pinned
+// SPKI public key. VerifyAnchorQuorum additionally evaluates distinct issuer trust and threshold.
 //
 // The signed MESSAGE is the raw 32-byte digest, never its 64-character hex text; ES256 then applies
 // its own SHA-256 internally. An implementation that signs the hex matches every digest vector and
@@ -381,14 +386,7 @@ type SignedAnchor struct {
 // WebCrypto, and WebCrypto emits only P1363. Refusing those meant a genuine third-party anchor
 // counted toward quorum for a TS/Rust/Python relying party and read as an invalid signature here.
 func VerifyAnchorSignature(anchor SignedAnchor, spkiB64 string) bool {
-	if anchor.Algorithm != "ES256" {
-		return false
-	}
 	keyDER, err := base64.StdEncoding.DecodeString(spkiB64)
-	if err != nil {
-		return false
-	}
-	pub, err := parseSpkiP256(keyDER)
 	if err != nil {
 		return false
 	}
@@ -397,5 +395,29 @@ func VerifyAnchorSignature(anchor SignedAnchor, spkiB64 string) bool {
 		return false
 	}
 	digest := anchorDigest(anchor.AnchorInput)
-	return verifyEcdsaSignature(pub, digest[:], sig)
+	switch anchor.Algorithm {
+	case "ES256":
+		pub, err := parseSpkiP256(keyDER)
+		return err == nil && verifyEcdsaSignature(pub, digest[:], sig)
+	case "Ed25519":
+		key, err := x509.ParsePKIXPublicKey(keyDER)
+		if err != nil {
+			return false
+		}
+		pub, ok := key.(ed25519.PublicKey)
+		return ok && ed25519.Verify(pub, digest[:], sig)
+	case "RSA-PSS":
+		key, err := x509.ParsePKIXPublicKey(keyDER)
+		if err != nil {
+			return false
+		}
+		pub, ok := key.(*rsa.PublicKey)
+		if !ok {
+			return false
+		}
+		h := sha256.Sum256(digest[:])
+		return rsa.VerifyPSS(pub, crypto.SHA256, h[:], sig, nil) == nil
+	default:
+		return false
+	}
 }

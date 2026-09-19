@@ -34,6 +34,10 @@ const (
 	// AUTHORITY TO APPROVE one pre-declared action to named local operators. It authorizes NOTHING on
 	// its own — VerifyApprovalReceipt refuses this type outright, with no opt-in. Use VerifyDelegation.
 	DivDelegationType = "div-delegation"
+	// Agent authorities and platform intents have dedicated verification entry points. They must
+	// never be accepted by VerifyApprovalReceipt because neither is an ordinary action approval.
+	DivAgentAuthorityType = "div-agent-authority"
+	DivPlatformIntentType = "div-platform-intent"
 	// DefaultClockSkewSeconds is the RECOMMENDED expiry tolerance (DIV §6.2).
 	DefaultClockSkewSeconds = 30
 	// MaxOfflineWindowMinutes caps an offline proof's validity window, enforced at verification and not
@@ -48,7 +52,8 @@ const (
 	// the relying party's own process on an attacker-supplied receipt immediately before an
 	// irreversible action. Mirrors MAX_WITNESSES in the TS reference, where a 20,000-witness
 	// receipt measured 3.6 seconds of blocked event loop and a 1.16 MB failure string.
-	MaxWitnesses = 64
+	MaxWitnesses            = 64
+	SelfCertifyingDIDPrefix = "did:intyga:key:"
 	// maxReportedFailures caps how many per-witness failure reasons are folded into a returned
 	// Reason string; the rest are elided as "+N more".
 	maxReportedFailures = 8
@@ -92,6 +97,24 @@ func checkSignerClass(requirement ApprovalRequirement) (bool, string) {
 	}
 	if !knownSignerClasses[requirement.SignerClass] {
 		return false, fmt.Sprintf("the signed requirement declares signerClass %q, which this verifier does not recognize — refusing rather than treating it as human-approved (DIV §4.3.2)", requirement.SignerClass)
+	}
+	return true, ""
+}
+
+// checkEvidence validates the reserved `evidence` field out of the signed bytes (DIV §4.3.4).
+// REQUIRED to be present and REQUIRED to be null in v1; a non-null value is an evidence-conditioned
+// authorization whose semantics this verifier has not been taught, and must never verify as if it
+// were unconditioned.
+//
+// Takes json.RawMessage, not a *T: encoding/json maps BOTH an absent key and an explicit null to a
+// nil pointer, so a pointer field cannot express the distinction this check is made of. A raw
+// message is nil only when the key is absent, and holds the four bytes "null" when it is present.
+func checkEvidence(raw json.RawMessage) (bool, string) {
+	if raw == nil {
+		return false, "the signed payload is missing evidence (DIV §4.3.4)"
+	}
+	if strings.TrimSpace(string(raw)) != "null" {
+		return false, "the signed payload declares an evidence condition, which this verifier does not support — refusing rather than treating it as unconditioned (DIV §4.3.4)"
 	}
 	return true, ""
 }
@@ -299,6 +322,56 @@ func (a ApproverTrustAnchor) candidatesRestricted(signerDID string, restrictTo [
 	return out, ""
 }
 
+// SelfCertifyingDID derives did:intyga:key:<base64url(sha256(decoded key bytes))>.
+func SelfCertifyingDID(publicKeyB64 string) string {
+	b, err := base64.StdEncoding.DecodeString(publicKeyB64)
+	if err != nil {
+		b, err = base64.RawStdEncoding.DecodeString(publicKeyB64)
+	}
+	if err != nil {
+		return ""
+	}
+	h := sha256.Sum256(b)
+	return SelfCertifyingDIDPrefix + base64.RawURLEncoding.EncodeToString(h[:])
+}
+
+func candidateKeys(a ApproverTrustAnchor, w ApprovalWitness, restrict []string) ([][2]string, string) {
+	keys, reason := a.candidatesRestricted(w.SignerDID, restrict)
+	if len(keys) > 0 || !strings.HasPrefix(w.SignerDID, SelfCertifyingDIDPrefix) {
+		return keys, reason
+	}
+	if len(a.PublicKeys) > 0 {
+		return nil, reason
+	}
+	if restrict != nil {
+		named := false
+		for _, did := range restrict {
+			if did == w.SignerDID {
+				named = true
+			}
+		}
+		if !named {
+			return nil, reason
+		}
+	}
+	allowed := false
+	for _, d := range a.DIDs {
+		if d == w.SignerDID {
+			allowed = true
+		}
+	}
+	if !allowed {
+		return nil, reason
+	}
+	if w.SignerPublicKey == "" {
+		return nil, "witness carries no public key to validate against self-certifying DID"
+	}
+	if SelfCertifyingDID(w.SignerPublicKey) != w.SignerDID {
+		return nil, "witness public key does not hash to the pinned self-certifying DID (did:intyga:key)"
+	}
+	return [][2]string{{w.SignerPublicKey, w.SignerDID}}, ""
+}
+
 // ApprovalWitness is one approver's signature over the canonical payload.
 type ApprovalWitness struct {
 	SignerDID         string  `json:"signerDid"`
@@ -482,12 +555,16 @@ func CanonicalIntentPayload(
 ) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	obj := map[string]interface{}{
-		"v":           DivVersion,
-		"type":        DivIntentType,
-		"target":      target,
-		"actionType":  actionType,
-		"display":     display,
-		"params":      params,
+		"v":          DivVersion,
+		"type":       DivIntentType,
+		"target":     target,
+		"actionType": actionType,
+		"display":    display,
+		"params":     params,
+		// DIV §4.3.4. Reserved and REQUIRED in the bytes; `null` states that no external-evidence
+		// condition applied. Untyped nil on purpose — StableStringify's default branch refuses any
+		// Go type outside the closed JSON set, so a typed nil pointer would error out here.
+		"evidence":    nil,
 		"requester":   req,
 		"requirement": rq,
 		"nonce":       nonce,
@@ -553,12 +630,16 @@ func CanonicalOfflineIntentPayload(
 ) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	return StableStringify(map[string]interface{}{
-		"v":            DivVersion,
-		"type":         DivOfflineIntentType,
-		"target":       target,
-		"actionType":   actionType,
-		"display":      display,
-		"params":       params,
+		"v":          DivVersion,
+		"type":       DivOfflineIntentType,
+		"target":     target,
+		"actionType": actionType,
+		"display":    display,
+		"params":     params,
+		// DIV §4.3.4. Reserved and REQUIRED in the bytes; `null` states that no external-evidence
+		// condition applied. Untyped nil on purpose — StableStringify's default branch refuses any
+		// Go type outside the closed JSON set, so a typed nil pointer would error out here.
+		"evidence":     nil,
 		"requester":    req,
 		"requirement":  rq,
 		"nonce":        nonce,
@@ -617,15 +698,28 @@ func CanonicalDelegationPayload(
 // canonicalFields is just enough of the DIV Intent Payload to gate version/type and read the fields
 // the relying party takes from the receipt (nonce, expiresAt) rather than asserting itself.
 type canonicalFields struct {
-	V               *int                 `json:"v"`
-	Type            string               `json:"type"`
-	Nonce           string               `json:"nonce"`
-	ExpiresAt       string               `json:"expiresAt"`
-	ChallengedAt    string               `json:"challengedAt"`
-	SealedAt        string               `json:"sealedAt"`
-	DelegatedTo     []string             `json:"delegatedTo"`
-	DelegatedQuorum *int                 `json:"delegatedQuorum"`
-	Requirement     *ApprovalRequirement `json:"requirement"`
+	V               *int     `json:"v"`
+	Type            string   `json:"type"`
+	Nonce           string   `json:"nonce"`
+	ExpiresAt       string   `json:"expiresAt"`
+	ChallengedAt    string   `json:"challengedAt"`
+	SealedAt        string   `json:"sealedAt"`
+	DelegatedTo     []string `json:"delegatedTo"`
+	DelegatedQuorum *int     `json:"delegatedQuorum"`
+	ActionPatterns  []string `json:"actionPatterns"`
+	SignedAt        string   `json:"signedAt"`
+	PayloadHash     string   `json:"payloadHash"`
+	RpID            string   `json:"rpId"`
+	Subject         *struct {
+		ExternalID string `json:"externalId"`
+	} `json:"subject"`
+	Agent *struct {
+		DID string `json:"did"`
+	} `json:"agent"`
+	Requirement *ApprovalRequirement `json:"requirement"`
+	// Raw, not *T: encoding/json collapses an absent key and an explicit null into the same nil
+	// pointer, and DIV §4.3.4 turns on telling those apart. See checkEvidence.
+	Evidence json.RawMessage `json:"evidence"`
 }
 
 // VerifiedDelegation is a delegation whose own signature, quorum and window have been checked by
@@ -668,6 +762,12 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if fields.Type == DivDelegationType {
 		return VerifyResult{OK: false, Reason: "this is a delegation, which authorizes no action on its own — verify it with VerifyDelegation and pass the result as opts.Delegation, together with an offline approval signed by the delegated operators"}
 	}
+	if fields.Type == DivAgentAuthorityType {
+		return VerifyResult{OK: false, Reason: "this is an agent authority, which authorizes no action on its own — verify it with VerifyAgentAuthority; execution still requires an approval receipt"}
+	}
+	if fields.Type == DivPlatformIntentType {
+		return VerifyResult{OK: false, Reason: "this is a platform hash-only intent (DIV §5c) — verify it with VerifyPlatformReceipt"}
+	}
 	offline := fields.Type == DivOfflineIntentType
 	if !offline && fields.Type != DivIntentType {
 		return VerifyResult{OK: false, Reason: "payload is not a div-intent-verification"}
@@ -704,6 +804,12 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: reason}
 	}
 	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
+		return VerifyResult{OK: false, Reason: reason}
+	}
+	// DIV §5-step-3c. Before Local Payload Reconstruction: a non-null value would also fail the byte
+	// comparison below, but it would report as a params mismatch — a tampering message for what is
+	// really an unsupported payload shape.
+	if ok, reason := checkEvidence(fields.Evidence); !ok {
 		return VerifyResult{OK: false, Reason: reason}
 	}
 
@@ -767,6 +873,16 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	delegatedQuorum := 0
 	if opts.Delegation != nil {
 		d := opts.Delegation
+		expiry, err := time.Parse(time.RFC3339, d.ExpiresAt)
+		if err != nil {
+			return VerifyResult{OK: false, Reason: "delegation expiresAt is not a valid RFC3339 timestamp"}
+		}
+		if !opts.AllowExpired {
+			now, skew := evaluationTime(opts)
+			if now.After(expiry.Add(skew)) {
+				return VerifyResult{OK: false, Reason: "delegation has expired (set AllowExpired for audit re-verification)"}
+			}
+		}
 		if d.Target != expected.Target {
 			return VerifyResult{OK: false, Reason: "the delegation was issued for a different target"}
 		}
@@ -880,12 +996,21 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			"receipt carries %d witnesses, above the %d this verifier will process", len(witnesses), MaxWitnesses)}
 	}
 
+	// A signed four-eyes rule cannot be enforced against a key-set anchor: PublicKeys mode never
+	// authenticates signerDid, so "this signer is not the requester" is unverifiable. Refuse the
+	// receipt outright rather than letting every witness fail individually — the caller's anchor is
+	// the wrong shape for the policy, which is not a quorum shortfall. All five ports decide it
+	// here, before the loop; TypeScript decided it mid-loop until this was reconciled.
+	if fields.Requirement.RequesterCannotApprove && len(expected.Approvers.PublicKeys) > 0 {
+		return VerifyResult{OK: false, Reason: "requesterCannotApprove requires a DID-mode trust anchor; in PublicKeys mode signerDid is unverified and four-eyes cannot be enforced"}
+	}
+
 	// Count DISTINCT approvers whose signature verifies under a key we independently trust. Distinct
 	// is load-bearing: without it, N copies of one approver's signature satisfy an N-of-M quorum.
 	verified := map[string]bool{}
 	var failures []string
 	for _, w := range witnesses {
-		cands, reason := expected.Approvers.candidatesRestricted(w.SignerDID, delegatedTo)
+		cands, reason := candidateKeys(expected.Approvers, w, delegatedTo)
 		if reason != "" {
 			failures = append(failures, reason)
 			continue
@@ -1083,7 +1208,7 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	verified := map[string]bool{}
 	var failures []string
 	for _, w := range witnesses {
-		cands, reason := expected.Approvers.candidates(w.SignerDID)
+		cands, reason := candidateKeys(expected.Approvers, w, nil)
 		if reason != "" {
 			failures = append(failures, reason)
 			continue
@@ -1186,6 +1311,9 @@ func witnessesOf(receipt ApprovalReceipt) []ApprovalWitness {
 
 // verifyWitness verifies one witness using an already-TRUSTED key. Returns "" on success.
 func verifyWitness(w ApprovalWitness, trustedKey string, receipt ApprovalReceipt, opts VerifyOptions) string {
+	if w.SigAlg == nil || (*w.SigAlg != "ES256" && *w.SigAlg != "WEBAUTHN") {
+		return "unsupported witness signature algorithm"
+	}
 	if w.SigAlg != nil && *w.SigAlg == "WEBAUTHN" {
 		return verifyWebAuthnWitness(w, trustedKey, receipt, opts)
 	}

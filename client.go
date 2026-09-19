@@ -225,8 +225,10 @@ func (c *Client) Authorize(ctx context.Context, actionDescription string, opts A
 	body := map[string]interface{}{
 		"target":            opts.Target,
 		"actionDescription": actionDescription,
-		"actionType":        opts.ActionType,
 		"params":            params,
+	}
+	if opts.ActionType != "" {
+		body["actionType"] = opts.ActionType
 	}
 	if opts.TimeoutSeconds > 0 {
 		body["timeout"] = opts.TimeoutSeconds

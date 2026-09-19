@@ -5,6 +5,10 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 
 ## [Unreleased]
 
+- Rebuilt against the DIV Intent Payload's new REQUIRED `evidence` field (DIV §4.3.4), which is
+  `null` in this version. No API change; receipts carry the field inside `canonicalPayload` only.
+
+- `Authorize` now omits `actionType` when unset, matching the gateway's optional field schema.
 - **Tokens are refreshed automatically.** `Client` now reads `expires_in` from the client-credentials
   exchange and re-exchanges `min(60s, expires_in / 10)` before expiry, so a long-lived client (or a
   `RequireApproval` wait longer than the token's life) no longer fails every call once the token

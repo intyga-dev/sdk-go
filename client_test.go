@@ -446,6 +446,9 @@ func TestAuthorizeSendsTarget(t *testing.T) {
 		if body["target"] != "prod-payments" {
 			t.Errorf("authorize body must carry the target, got %v", body["target"])
 		}
+		if body["actionType"] != "wire_transfer" {
+			t.Errorf("authorize body must preserve explicit actionType, got %v", body["actionType"])
+		}
 		writeJSON(w, map[string]interface{}{"nonce": "n_1", "status": "PENDING"})
 	})
 	srv := httptest.NewServer(mux)
@@ -456,6 +459,25 @@ func TestAuthorizeSendsTarget(t *testing.T) {
 		Target:     "prod-payments",
 		ActionType: "wire_transfer",
 	}); err != nil {
+		t.Fatalf("Authorize: %v", err)
+	}
+}
+
+func TestAuthorizeOmitsUnsetActionType(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if _, present := body["actionType"]; present {
+			t.Errorf("unset actionType must be omitted, got %v", body["actionType"])
+		}
+		writeJSON(w, map[string]interface{}{"nonce": "n_1", "status": "PENDING"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	if _, err := client.Authorize(context.Background(), "Wire", AuthorizeOptions{Target: "prod-payments"}); err != nil {
 		t.Fatalf("Authorize: %v", err)
 	}
 }
