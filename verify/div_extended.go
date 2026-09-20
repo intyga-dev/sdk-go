@@ -9,14 +9,18 @@ import (
 )
 
 // CanonicalAgentAuthorityPayload reproduces the DIV §5b signed bytes.
-func CanonicalAgentAuthorityPayload(target string, actionPatterns []string, display, agentDID string, requester RequesterIdentity, requirement ApprovalRequirement, nonce, sealedAt, expiresAt string) (string, error) {
+func CanonicalAgentAuthorityPayload(target string, actionPatterns []string, display, agentDID string, requester RequesterIdentity, requirement ApprovalRequirement, nonce, sealedAt, expiresAt string, parentReceiptHash ...string) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	patterns := append([]string(nil), actionPatterns...)
 	sort.Slice(patterns, func(i, j int) bool { return utf16Less(patterns[i], patterns[j]) })
 	if patterns == nil {
 		patterns = []string{}
 	}
-	return StableStringify(map[string]interface{}{"v": DivVersion, "type": DivAgentAuthorityType, "target": target, "actionPatterns": patterns, "display": display, "agent": map[string]interface{}{"did": agentDID}, "requester": req, "requirement": rq, "nonce": nonce, "sealedAt": sealedAt, "expiresAt": expiresAt})
+	var parent interface{}
+	if len(parentReceiptHash) > 0 && parentReceiptHash[0] != "" {
+		parent = parentReceiptHash[0]
+	}
+	return StableStringify(map[string]interface{}{"v": DivVersion, "type": DivAgentAuthorityType, "target": target, "actionPatterns": patterns, "display": display, "agent": map[string]interface{}{"did": agentDID}, "parentReceiptHash": parent, "requester": req, "requirement": rq, "nonce": nonce, "sealedAt": sealedAt, "expiresAt": expiresAt})
 }
 
 // CanonicalPlatformIntentPayload reproduces the DIV §5c hash-only signed bytes.
@@ -132,6 +136,7 @@ type VerifiedAgentAuthority struct {
 	Nonce               string
 	Signers             []string
 	SealedAt, ExpiresAt string
+	ParentReceiptHash   string
 }
 
 func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpectation, opts VerifyOptions) (VerifyResult, *VerifiedAgentAuthority) {
@@ -144,6 +149,15 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 	}
 	if len(f.ActionPatterns) == 0 {
 		return VerifyResult{Reason: "authority is missing a valid actionPatterns set"}, nil
+	}
+	if f.ParentReceiptHash == nil {
+		return VerifyResult{Reason: "authority is missing parentReceiptHash"}, nil
+	}
+	parent := ""
+	if string(f.ParentReceiptHash) != "null" {
+		if json.Unmarshal(f.ParentReceiptHash, &parent) != nil || !strings.HasPrefix(parent, "sha256:") || !isHash64(strings.TrimPrefix(parent, "sha256:")) {
+			return VerifyResult{Reason: "authority has invalid parentReceiptHash"}, nil
+		}
 	}
 	for _, p := range f.ActionPatterns {
 		if p == "" {
@@ -177,7 +191,7 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 	if expected.Target == "" || expected.AgentDID == "" {
 		return VerifyResult{Reason: "expected target and agent DID are required"}, nil
 	}
-	recomputed, err := CanonicalAgentAuthorityPayload(expected.Target, f.ActionPatterns, receipt.ActionDescription, expected.AgentDID, *receipt.Requester, *f.Requirement, f.Nonce, f.SealedAt, f.ExpiresAt)
+	recomputed, err := CanonicalAgentAuthorityPayload(expected.Target, f.ActionPatterns, receipt.ActionDescription, expected.AgentDID, *receipt.Requester, *f.Requirement, f.Nonce, f.SealedAt, f.ExpiresAt, parent)
 	if err != nil || recomputed != receipt.CanonicalPayload {
 		return VerifyResult{Reason: "target/agent/actionPatterns do not match what was sealed"}, nil
 	}
@@ -243,6 +257,6 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 		}
 	}
 	sort.Strings(patterns)
-	a := &VerifiedAgentAuthority{expected.AgentDID, expected.Target, patterns, f.Nonce, signers, f.SealedAt, f.ExpiresAt}
+	a := &VerifiedAgentAuthority{expected.AgentDID, expected.Target, patterns, f.Nonce, signers, f.SealedAt, f.ExpiresAt, parent}
 	return VerifyResult{OK: true, Signers: signers}, a
 }

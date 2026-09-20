@@ -69,7 +69,10 @@ if err != nil || !c.OK {
 
 > **Quorum caveat.** In `PublicKeys` mode the identity IS the key, so an M-of-N quorum counts credentials, not people — one approver whose two credentials are both listed satisfies a 2-of-N alone. For `requiredApprovals` > 1 use the DID/identity form (DIV §4.4.6).
 
-Works identically whether the token is a **human key** (backend/service) or an **agent key** — Intyga is a general zero-trust gate for *any* backend action, not just agents.
+This example uses a **human or SERVICE key**. An `AI_AGENT` key must supply
+`AuthorizeOptions.AgentContext` and verify the signed context against independent runtime and
+session state before executing (DIV §4.3.6). The configuration digest is an RP assertion, not
+proof of agent integrity.
 
 ## API
 

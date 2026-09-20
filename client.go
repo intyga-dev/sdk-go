@@ -110,6 +110,8 @@ type AuthorizeOptions struct {
 	ActionType string
 	// Params are the exact structured variables that will execute — displayed to the approver AND signed.
 	Params map[string]interface{}
+	// AgentContext is the RP's continuity claim (action, config digest, delegation and session).
+	AgentContext map[string]interface{}
 	// TimeoutSeconds optionally overrides the server's default challenge TTL.
 	TimeoutSeconds int
 }
@@ -230,6 +232,7 @@ func (c *Client) Authorize(ctx context.Context, actionDescription string, opts A
 	if opts.ActionType != "" {
 		body["actionType"] = opts.ActionType
 	}
+	if opts.AgentContext != nil { body["agentContext"] = opts.AgentContext }
 	if opts.TimeoutSeconds > 0 {
 		body["timeout"] = opts.TimeoutSeconds
 	}

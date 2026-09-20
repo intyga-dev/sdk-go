@@ -11,12 +11,77 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"golang.org/x/text/unicode/norm"
 )
+
+var agentDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+var agentSequencePattern = regexp.MustCompile(`^[1-9][0-9]{0,17}$`)
+var agentDecimalPattern = regexp.MustCompile(`^(?:0|[1-9][0-9]{0,29})(?:\.[0-9]{1,9})?$`)
+var agentCurrencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
+var agentTimePattern = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$`)
+
+// The caller supplies this independently of the receipt. Keep these checks aligned with the
+// TypeScript reference before local payload reconstruction accepts the asserted context.
+func validateAgentContext(context map[string]interface{}, exp string, sigAlg *string) string {
+	obj := func(value interface{}) map[string]interface{} { out, _ := value.(map[string]interface{}); return out }
+	str := func(value interface{}) string { out, _ := value.(string); return out }
+	action, agent, session := obj(context["action"]), obj(context["agent"]), obj(context["session"])
+	reversibility := str(action["reversibility"])
+	if reversibility != "reversible" && reversibility != "irreversible" {
+		return "invalid agent action reversibility"
+	}
+	label, configDigest := str(agent["label"]), str(agent["configDigest"])
+	if label == "" || len(utf16.Encode([]rune(label))) > 200 || !agentDigestPattern.MatchString(configDigest) {
+		return "invalid agent identity or configuration digest"
+	}
+	if !norm.NFC.IsNormalString(label) || !norm.NFC.IsNormalString(str(session["id"])) {
+		return "agent labels and session identifiers must be NFC"
+	}
+	delegatedBy, hasDelegatedBy := agent["delegatedBy"]
+	if !hasDelegatedBy || (delegatedBy != nil && !agentDigestPattern.MatchString(str(delegatedBy))) {
+		return "invalid parent authority digest"
+	}
+	id, seq := str(session["id"]), str(session["seq"])
+	if !agentDigestPattern.MatchString(id) || !agentSequencePattern.MatchString(seq) {
+		return "invalid agent session identity or sequence"
+	}
+	prev, hasPrev := session["prev"]
+	if !hasPrev || (seq == "1") != (prev == nil) || (prev != nil && !agentDigestPattern.MatchString(str(prev))) {
+		return "invalid agent session predecessor"
+	}
+	validMoney := func(value interface{}) bool {
+		m := obj(value)
+		return m != nil && agentDecimalPattern.MatchString(str(m["amount"])) && agentCurrencyPattern.MatchString(str(m["currency"]))
+	}
+	amount, hasAmount := action["amount"]
+	aggregate, hasAggregate := session["aggregate"]
+	if !hasAmount || !hasAggregate {
+		return "invalid agent monetary amount"
+	}
+	if (amount != nil && !validMoney(amount)) || (aggregate != nil && !validMoney(aggregate)) {
+		return "invalid agent monetary amount"
+	}
+	if (amount == nil) != (aggregate == nil) || (amount != nil && str(obj(amount)["currency"]) != str(obj(aggregate)["currency"])) {
+		return "agent monetary amount and aggregate disagree"
+	}
+	nbf := str(context["nbf"])
+	from, fromErr := time.Parse("2006-01-02T15:04:05.000Z", nbf)
+	to, toErr := time.Parse("2006-01-02T15:04:05.000Z", exp)
+	if !agentTimePattern.MatchString(nbf) || !agentTimePattern.MatchString(exp) || fromErr != nil || toErr != nil || !to.After(from) || to.Sub(from) > 5*time.Minute {
+		return "agent intent must use canonical UTC times within five minutes"
+	}
+	if reversibility == "irreversible" && sigAlg != nil && *sigAlg == "AUTO_APPROVED" {
+		return "irreversible agent action requires a human signature"
+	}
+	return ""
+}
 
 // DIV protocol constants (docs/DIV.md v1).
 const (
@@ -228,6 +293,8 @@ type Expected struct {
 	Nonce      string                 `json:"nonce"`
 	ActionType string                 `json:"actionType"`
 	Params     map[string]interface{} `json:"params"`
+	// RP-asserted live agent context; never populated from the receipt itself.
+	AgentContext map[string]interface{} `json:"agentContext,omitempty"`
 	// Approvers is REQUIRED. Verification uses a key YOU resolve, never receipt.SignerPublicKey:
 	// a receipt checked against its own embedded key proves only internal consistency, and per the
 	// DIV threat model anyone able to hand you a receipt could have minted that keypair.
@@ -573,6 +640,20 @@ func CanonicalIntentPayload(
 	return StableStringify(obj)
 }
 
+// CanonicalAgentIntentPayload is the DIV v1 agent variant. All agent fields enter the same JCS
+// object as the ordinary intent and are therefore covered by the WebAuthn challenge.
+func CanonicalAgentIntentPayload(target, actionType, display string, params map[string]interface{},
+	requester RequesterIdentity, requirement ApprovalRequirement, nonce, exp string,
+	context map[string]interface{}) (string, error) {
+	req, rq := canonicalCommon(requester, requirement)
+	return StableStringify(map[string]interface{}{
+		"v": DivVersion, "type": DivIntentType, "target": target, "actionType": actionType,
+		"display": display, "params": params, "evidence": nil, "requester": req,
+		"requirement": rq, "nonce": nonce, "action": context["action"],
+		"agent": context["agent"], "session": context["session"], "nbf": context["nbf"], "exp": exp,
+	})
+}
+
 // canonicalCommon builds the requester + requirement projection shared by all three builders. One
 // definition rather than three copies: these bytes are the contract, and a field added to one builder
 // but not the others is exactly the drift the golden vectors exist to catch.
@@ -698,19 +779,21 @@ func CanonicalDelegationPayload(
 // canonicalFields is just enough of the DIV Intent Payload to gate version/type and read the fields
 // the relying party takes from the receipt (nonce, expiresAt) rather than asserting itself.
 type canonicalFields struct {
-	V               *int     `json:"v"`
-	Type            string   `json:"type"`
-	Nonce           string   `json:"nonce"`
-	ExpiresAt       string   `json:"expiresAt"`
-	ChallengedAt    string   `json:"challengedAt"`
-	SealedAt        string   `json:"sealedAt"`
-	DelegatedTo     []string `json:"delegatedTo"`
-	DelegatedQuorum *int     `json:"delegatedQuorum"`
-	ActionPatterns  []string `json:"actionPatterns"`
-	SignedAt        string   `json:"signedAt"`
-	PayloadHash     string   `json:"payloadHash"`
-	RpID            string   `json:"rpId"`
-	Subject         *struct {
+	V                 *int            `json:"v"`
+	Type              string          `json:"type"`
+	Nonce             string          `json:"nonce"`
+	ExpiresAt         string          `json:"expiresAt"`
+	Exp               string          `json:"exp"`
+	ChallengedAt      string          `json:"challengedAt"`
+	SealedAt          string          `json:"sealedAt"`
+	DelegatedTo       []string        `json:"delegatedTo"`
+	DelegatedQuorum   *int            `json:"delegatedQuorum"`
+	ActionPatterns    []string        `json:"actionPatterns"`
+	ParentReceiptHash json.RawMessage `json:"parentReceiptHash"`
+	SignedAt          string          `json:"signedAt"`
+	PayloadHash       string          `json:"payloadHash"`
+	RpID              string          `json:"rpId"`
+	Subject           *struct {
 		ExternalID string `json:"externalId"`
 	} `json:"subject"`
 	Agent *struct {
@@ -791,8 +874,32 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if receipt.Requester == nil {
 		return VerifyResult{OK: false, Reason: "receipt missing requester"}
 	}
+	agentIntent := fields.Agent != nil
+	if agentIntent && expected.AgentContext == nil {
+		return VerifyResult{Reason: "agent receipt requires independently asserted PEP context"}
+	}
+	if !agentIntent && expected.AgentContext != nil {
+		return VerifyResult{Reason: "agent context was expected but is absent from the signed payload"}
+	}
+	if agentIntent {
+		fields.ExpiresAt = fields.Exp
+		if fields.ExpiresAt == "" {
+			return VerifyResult{Reason: "receipt missing expiration"}
+		}
+		if problem := validateAgentContext(expected.AgentContext, fields.Exp, receipt.SigAlg); problem != "" {
+			return VerifyResult{Reason: "invalid independently asserted agent context: " + problem}
+		}
+		if agent, ok := expected.AgentContext["agent"].(map[string]interface{}); ok && agent["delegatedBy"] != nil {
+			return VerifyResult{Reason: "delegated agent receipt requires a trusted root-to-leaf authority chain"}
+		}
+		nbf, _ := time.Parse("2006-01-02T15:04:05.000Z", expected.AgentContext["nbf"].(string))
+		now, skew := evaluationTime(opts)
+		if nbf.After(now.Add(skew)) {
+			return VerifyResult{Reason: "agent approval is not valid yet"}
+		}
+	}
 	if fields.ExpiresAt == "" {
-		return VerifyResult{OK: false, Reason: "receipt missing expiresAt"}
+		return VerifyResult{OK: false, Reason: "receipt missing expiration"}
 	}
 
 	// The requirement is part of the SIGNED bytes, so reading it back from the payload is not
@@ -928,6 +1035,10 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			fields.ChallengedAt,
 			fields.ExpiresAt,
 		)
+	} else if agentIntent {
+		recomputed, recomputeErr = CanonicalAgentIntentPayload(expected.Target, expected.ActionType,
+			receipt.ActionDescription, expected.Params, *receipt.Requester, *fields.Requirement,
+			fields.Nonce, fields.ExpiresAt, expected.AgentContext)
 	} else {
 		recomputed, recomputeErr = CanonicalIntentPayload(
 			expected.Target,
