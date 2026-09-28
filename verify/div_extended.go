@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 )
 
 // CanonicalAgentAuthorityPayload reproduces the DIV §5b signed bytes.
@@ -35,6 +34,9 @@ type PlatformReceiptExpectation struct {
 }
 
 func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpectation, opts VerifyOptions) VerifyResult {
+	if why := canonicalTextProblem(receipt.CanonicalPayload); why != "" {
+		return VerifyResult{Reason: why}
+	}
 	var f canonicalFields
 	if json.Unmarshal([]byte(receipt.CanonicalPayload), &f) != nil || f.V == nil || *f.V != DivVersion {
 		return VerifyResult{Reason: "unsupported DIV payload version"}
@@ -67,8 +69,8 @@ func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpe
 	if err != nil || recomputed != receipt.CanonicalPayload {
 		return VerifyResult{Reason: "payloadHash/rpId do not match what was signed"}
 	}
-	signed, e1 := time.Parse(time.RFC3339, f.SignedAt)
-	expiry, e2 := time.Parse(time.RFC3339, f.ExpiresAt)
+	signed, e1 := parseSignedTime(f.SignedAt)
+	expiry, e2 := parseSignedTime(f.ExpiresAt)
 	if e1 != nil {
 		return VerifyResult{Reason: "signedAt is not a valid RFC3339 timestamp"}
 	}
@@ -96,7 +98,12 @@ func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpe
 		return VerifyResult{Reason: fmt.Sprintf("receipt carries %d witnesses, above the %d this verifier will process", len(w), MaxWitnesses)}
 	}
 	opts.ExpectedRpID = expected.RpID
+	// User verification is UNCONDITIONAL on this plane (DIV §5c.3): the ordinary-receipt waiver
+	// RequireUserVerification=false is overridden here, never honoured.
+	uv := true
+	opts.RequireUserVerification = &uv
 	verified := map[string]bool{}
+	countedKeys := map[string]string{}
 	failures := []string{}
 	for _, x := range w {
 		if x.SigAlg == nil || *x.SigAlg != "WEBAUTHN" {
@@ -110,7 +117,11 @@ func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpe
 		}
 		for _, c := range cs {
 			if verifyWitness(x, c[0], receipt, opts) == "" {
-				verified[c[1]] = true
+				if why := sharedKeyProblem(countedKeys, c[0], c[1]); why != "" {
+					failures = append(failures, why)
+				} else {
+					verified[c[1]] = true
+				}
 				break
 			}
 		}
@@ -129,6 +140,9 @@ func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpe
 type AgentAuthorityExpectation struct {
 	Approvers        ApproverTrustAnchor
 	Target, AgentDID string
+	// Requirement is STRONGLY RECOMMENDED: YOUR sealing policy for agent authority (DIV §5b.3, §5
+	// step 3d). Nil enforces only the sealers' own stated quorum.
+	Requirement *RequirementFloor
 }
 type VerifiedAgentAuthority struct {
 	AgentDID, Target    string
@@ -140,6 +154,9 @@ type VerifiedAgentAuthority struct {
 }
 
 func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpectation, opts VerifyOptions) (VerifyResult, *VerifiedAgentAuthority) {
+	if why := canonicalTextProblem(receipt.CanonicalPayload); why != "" {
+		return VerifyResult{Reason: why}, nil
+	}
 	var f canonicalFields
 	if json.Unmarshal([]byte(receipt.CanonicalPayload), &f) != nil || f.V == nil || *f.V != DivVersion {
 		return VerifyResult{Reason: "unsupported DIV payload version"}, nil
@@ -164,8 +181,8 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 			return VerifyResult{Reason: "authority is missing a valid actionPatterns set"}, nil
 		}
 	}
-	sealed, e1 := time.Parse(time.RFC3339, f.SealedAt)
-	expiry, e2 := time.Parse(time.RFC3339, f.ExpiresAt)
+	sealed, e1 := parseSignedTime(f.SealedAt)
+	expiry, e2 := parseSignedTime(f.ExpiresAt)
 	if e1 != nil {
 		return VerifyResult{Reason: "sealedAt is not a valid RFC3339 timestamp"}, nil
 	}
@@ -186,6 +203,9 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 		return VerifyResult{Reason: r}, nil
 	}
 	if ok, r := checkSignerClass(*f.Requirement); !ok {
+		return VerifyResult{Reason: r}, nil
+	}
+	if ok, r := checkRequirementFloor(*f.Requirement, expected.Requirement); !ok {
 		return VerifyResult{Reason: r}, nil
 	}
 	if expected.Target == "" || expected.AgentDID == "" {
@@ -211,10 +231,14 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 	// See the identical hoist in VerifyApprovalReceipt: a key-set anchor cannot authenticate
 	// signerDid, so the sealed four-eyes rule is unenforceable and the receipt is refused outright
 	// rather than per witness.
+	if f.Requirement.RequiredApprovals > 1 && len(expected.Approvers.PublicKeys) > 0 {
+		return VerifyResult{Reason: "multi-approver quorum requires a DID-mode trust anchor (DIV §5 step 3b)"}, nil
+	}
 	if f.Requirement.RequesterCannotApprove && len(expected.Approvers.PublicKeys) > 0 {
 		return VerifyResult{Reason: "requesterCannotApprove requires a DID-mode trust anchor"}, nil
 	}
 	verified := map[string]bool{}
+	countedKeys := map[string]string{}
 	fails := []string{}
 	for _, w := range ws {
 		cs, r := candidateKeys(expected.Approvers, w, nil)
@@ -222,20 +246,30 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 			fails = append(fails, r)
 			continue
 		}
-		matched := ""
+		matched, matchedKey := "", ""
 		for _, c := range cs {
 			if verifyWitness(w, c[0], receipt, opts) == "" {
-				matched = c[1]
+				matched, matchedKey = c[1], c[0]
 				break
 			}
 		}
 		if matched == "" {
 			continue
 		}
-		if f.Requirement.RequireHardwareKey && (w.SigAlg == nil || *w.SigAlg != "WEBAUTHN") {
+		if f.Requirement.RequiresHardwareCredential() && (w.SigAlg == nil || *w.SigAlg != "WEBAUTHN") {
 			continue
 		}
+		if f.Requirement.RequireHardwareKey {
+			if why := backupFlagsProblem(w); why != "" {
+				fails = append(fails, why)
+				continue
+			}
+		}
 		if f.Requirement.RequesterCannotApprove && w.SignerDID == receipt.Requester.DID {
+			continue
+		}
+		if why := sharedKeyProblem(countedKeys, matchedKey, matched); why != "" {
+			fails = append(fails, why)
 			continue
 		}
 		verified[matched] = true

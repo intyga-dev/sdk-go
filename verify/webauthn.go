@@ -222,6 +222,8 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 		// inside someone else's page": an embedded RP frame reports the RP's OWN origin and its
 		// rpIdHash matches too (W3C WebAuthn L3 §7.2 step 9).
 		CrossOrigin bool `json:"crossOrigin"`
+		// TopOrigin (WebAuthn L3) names the top-level page when the ceremony ran in a frame.
+		TopOrigin *string `json:"topOrigin"`
 	}
 	if err := json.Unmarshal(clientDataBuf, &clientData); err != nil {
 		return "clientDataJSON is not valid JSON"
@@ -237,6 +239,11 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 	}
 	if clientData.CrossOrigin && !opts.AllowCrossOrigin {
 		return "assertion was produced in a cross-origin frame (crossOrigin=true)"
+	}
+	// A topOrigin that differs from origin is the same embedding reported another way, refused
+	// exactly like crossOrigin=true (DIV §4.4.5 rule 5) — the gateway refuses it at ingest.
+	if clientData.TopOrigin != nil && *clientData.TopOrigin != clientData.Origin && !opts.AllowCrossOrigin {
+		return "assertion was produced in a frame embedded by another origin (topOrigin differs from origin)"
 	}
 	expectedChallenge := base64urlNoPad([]byte(receipt.CanonicalPayload))
 	if stripBase64Padding(clientData.Challenge) != expectedChallenge {

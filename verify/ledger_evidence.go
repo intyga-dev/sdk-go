@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"sort"
@@ -33,13 +34,17 @@ type EvidenceEntry struct {
 	Proof InclusionProof `json:"proof"`
 }
 type EvidenceCheckpoint struct {
-	ID         string         `json:"id"`
-	Root       string         `json:"root"`
-	AnchorRef  *string        `json:"anchorRef"`
-	AnchoredAt *string        `json:"anchoredAt"`
-	SeqStart   string         `json:"seqStart"`
-	SeqEnd     string         `json:"seqEnd"`
-	Anchors    []SignedAnchor `json:"anchors,omitempty"`
+	ID         string  `json:"id"`
+	Root       string  `json:"root"`
+	AnchorRef  *string `json:"anchorRef"`
+	AnchoredAt *string `json:"anchoredAt"`
+	SeqStart   string  `json:"seqStart"`
+	SeqEnd     string  `json:"seqEnd"`
+	// §5.4 chain fields: every anchor binds ChainHash (§5.2), and the verifier recomputes it.
+	EntryCount    *int           `json:"entryCount,omitempty"`
+	PrevChainHash *string        `json:"prevChainHash,omitempty"`
+	ChainHash     *string        `json:"chainHash,omitempty"`
+	Anchors       []SignedAnchor `json:"anchors,omitempty"`
 }
 type TenantSequenceCommitment struct {
 	TenantID       string `json:"tenantId"`
@@ -47,12 +52,14 @@ type TenantSequenceCommitment struct {
 	LastTenantSeq  string `json:"lastTenantSeq"`
 }
 type EvidenceBundle struct {
-	Protocol   string      `json:"protocol,omitempty"`
-	Kind       string      `json:"kind"`
-	Version    interface{} `json:"version"`
-	Profile    string      `json:"profile,omitempty"`
-	ExportedAt string      `json:"exportedAt"`
-	Tenant     struct {
+	invalidProtocol   bool
+	Protocol          string          `json:"protocol,omitempty"`
+	AlgorithmRegistry json.RawMessage `json:"algorithmRegistry,omitempty"`
+	Kind              string          `json:"kind"`
+	Version           interface{}     `json:"version"`
+	Profile           string          `json:"profile,omitempty"`
+	ExportedAt        string          `json:"exportedAt"`
+	Tenant            struct {
 		ID   string  `json:"id"`
 		Name *string `json:"name"`
 	} `json:"tenant"`
@@ -65,10 +72,11 @@ type EvidenceBundle struct {
 	Checkpoints              []EvidenceCheckpoint      `json:"checkpoints"`
 }
 type EvidenceRootVerification struct {
-	Root            string   `json:"root"`
-	AnchorRef       *string  `json:"anchorRef"`
-	AnchorVerified  *bool    `json:"anchorVerified"`
-	VerifiedIssuers []string `json:"verifiedIssuers"`
+	Root            string           `json:"root"`
+	AnchorRef       *string          `json:"anchorRef"`
+	AnchorVerified  *bool            `json:"anchorVerified"`
+	VerifiedIssuers []string         `json:"verifiedIssuers"`
+	WitnessTimes    map[string]int64 `json:"witnessTimes"`
 }
 type EvidenceFailure struct{ Seq, Reason string }
 type EvidenceSignatures struct {
@@ -85,12 +93,34 @@ type EvidenceVerification struct {
 	Notes                                  []string
 }
 type EvidenceVerifyOptions struct {
-	TrustedRoots        []string
+	TrustedRoots []string
+	// TrustedCheckpoints are checkpoint records YOU hold (chain-verified roots-file lines, DEWP §5.4.1).
+	// Their roots are trusted roots; a bundle checkpoint over one must agree with it on every field
+	// both state, and anchors are held to the record's range, chain hash and time (§5.3).
+	TrustedCheckpoints  []TrustedCheckpoint
 	Anchors             []SignedAnchor
 	AnchorsByCheckpoint map[string][]SignedAnchor
 	AnchorPolicy        *AnchorPolicy
 	ResolveAnchorKey    AnchorKeyResolver
 	ExternalKeys        ExternalAnchorKeys
+}
+
+// Retain the distinction between an absent legacy declaration and an explicit empty protocol.
+func (b *EvidenceBundle) UnmarshalJSON(data []byte) error {
+	type wire EvidenceBundle
+	var value wire
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	var envelope struct {
+		Protocol *string `json:"protocol"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return err
+	}
+	value.invalidProtocol = envelope.Protocol != nil && *envelope.Protocol == ""
+	*b = EvidenceBundle(value)
+	return nil
 }
 
 func parseCounter(s string) (*big.Int, bool) {
@@ -114,16 +144,62 @@ func matchesPtr(got, want *string) bool {
 }
 func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVerification {
 	r := EvidenceVerification{Total: len(b.Entries), Failed: []EvidenceFailure{}, Notes: []string{}}
-	if b.Kind != EvidenceBundleKind {
+	if b.Kind != EvidenceBundleKind || (b.invalidProtocol || !supportedEnvelope(b.Protocol, b.Version, b.AlgorithmRegistry)) {
 		r.Failed = append(r.Failed, EvidenceFailure{"-", fmt.Sprintf("refusing bundle kind %q", b.Kind)})
 	}
 	unknown := b.Profile != "" && b.Profile != AuditProfile
+	trustedGiven := o.TrustedRoots != nil || o.TrustedCheckpoints != nil
 	trusted := map[string]bool{}
 	for _, x := range o.TrustedRoots {
 		trusted[x] = true
 	}
-	if o.TrustedRoots == nil {
-		r.Notes = append(r.Notes, "No independent roots supplied")
+	records := map[string]TrustedCheckpoint{}
+	for _, t := range o.TrustedCheckpoints {
+		trusted[t.Root] = true
+		if _, seen := records[t.Root]; !seen {
+			records[t.Root] = t
+		}
+	}
+	if !trustedGiven {
+		r.Notes = append(r.Notes, "No roots supplied; use roots obtained earlier or from the published roots file")
+	}
+	// §5.4 chain fields, where carried: the chain hash every anchor binds must recompute.
+	for _, c := range b.Checkpoints {
+		if c.ChainHash == nil {
+			continue
+		}
+		if c.PrevChainHash == nil || c.AnchoredAt == nil || c.EntryCount == nil {
+			r.Failed = append(r.Failed, EvidenceFailure{"-", fmt.Sprintf("checkpoint %s chainHash lacks the fields it commits to", c.ID)})
+			continue
+		}
+		want := ChainHash(ChainInput{PrevChainHash: *c.PrevChainHash, Root: c.Root, SeqStart: c.SeqStart, SeqEnd: c.SeqEnd, EntryCount: *c.EntryCount, AnchoredAt: *c.AnchoredAt})
+		if want != *c.ChainHash {
+			r.Failed = append(r.Failed, EvidenceFailure{"-", fmt.Sprintf("checkpoint %s chainHash does not recompute", c.ID)})
+		}
+	}
+	// A checkpoint the caller holds a record for must agree with it on every field both state: a
+	// re-dated anchoredAt with a self-consistent chain over a made-up predecessor recomputes above.
+	strPtrDiffers := func(shown, held *string) bool { return shown != nil && held != nil && *shown != *held }
+	for _, c := range b.Checkpoints {
+		t, ok := records[c.Root]
+		if !ok {
+			continue
+		}
+		start, end := c.SeqStart, c.SeqEnd
+		for _, d := range []struct {
+			field   string
+			differs bool
+		}{
+			{"seqStart", strPtrDiffers(&start, t.SeqStart)},
+			{"seqEnd", strPtrDiffers(&end, t.SeqEnd)},
+			{"entryCount", c.EntryCount != nil && t.EntryCount != nil && *c.EntryCount != *t.EntryCount},
+			{"anchoredAt", strPtrDiffers(c.AnchoredAt, t.AnchoredAt)},
+			{"chainHash", strPtrDiffers(c.ChainHash, t.ChainHash)},
+		} {
+			if d.differs {
+				r.Failed = append(r.Failed, EvidenceFailure{"-", fmt.Sprintf("checkpoint %s %s contradicts your trusted checkpoint record for its root", c.ID, d.field)})
+			}
+		}
 	}
 	cp := map[string]EvidenceCheckpoint{}
 	ids := map[string]string{}
@@ -134,17 +210,51 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 	for _, c := range b.Checkpoints {
 		ids[c.Root] = c.Root
 	}
+	// effective: the position and time anchors over a root are held to — the caller's record where it
+	// states a field, the bundle's checkpoint otherwise.
+	effective := func(root string) (ExpectedCheckpoint, *int) {
+		c := cp[root]
+		start, end := c.SeqStart, c.SeqEnd
+		e := ExpectedCheckpoint{SeqStart: &start, SeqEnd: &end, ChainHash: c.ChainHash, AnchoredAt: c.AnchoredAt}
+		count := c.EntryCount
+		if t, ok := records[root]; ok {
+			if t.SeqStart != nil {
+				e.SeqStart = t.SeqStart
+			}
+			if t.SeqEnd != nil {
+				e.SeqEnd = t.SeqEnd
+			}
+			if t.ChainHash != nil {
+				e.ChainHash = t.ChainHash
+			}
+			if t.AnchoredAt != nil {
+				e.AnchoredAt = t.AnchoredAt
+			}
+			if t.EntryCount != nil {
+				count = t.EntryCount
+			}
+		}
+		return e, count
+	}
 	var first, last *big.Int
 	unbound, uncounted := false, false
 	redactedCount := 0
+	seenLeaf, seenSeq := map[string]bool{}, map[string]bool{}
+	blockCounts, checkpointCounts := map[string]int{}, map[string]int{}
 	for _, e := range b.Entries {
 		seq := e.Event.Seq
 		root := e.Proof.CheckpointRoot
+		// One committed event appears once; a genuine leaf used twice can otherwise fill two holes.
+		if seenLeaf[e.Proof.Leaf] || seenSeq[seq] {
+			r.Failed = append(r.Failed, EvidenceFailure{seq, "duplicate entry: this leaf or seq already appears in the bundle"})
+			continue
+		}
+		seenLeaf[e.Proof.Leaf], seenSeq[seq] = true, true
 		if _, ok := cp[root]; !ok {
 			r.Failed = append(r.Failed, EvidenceFailure{seq, "proof's checkpoint root is not in the bundle's checkpoint list"})
 			continue
 		}
-		if o.TrustedRoots != nil && !trusted[root] {
+		if trustedGiven && !trusted[root] {
 			r.Failed = append(r.Failed, EvidenceFailure{seq, "proof's checkpoint root is not among the supplied trusted roots"})
 			continue
 		}
@@ -152,6 +262,19 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 			r.Failed = append(r.Failed, EvidenceFailure{seq, "inclusion proof does not recompute to the daily root"})
 			continue
 		}
+		// DEWP §17.3: leaf counts are prover-supplied; bind them to each other and to the entry count.
+		prevBlock, hasBlock := blockCounts[e.Proof.BlockRoot]
+		prevCp, hasCp := checkpointCounts[root]
+		_, count := effective(root)
+		if (hasBlock && prevBlock != e.Proof.BlockLeafCount) || (hasCp && prevCp != e.Proof.CheckpointLeafCount) {
+			r.Failed = append(r.Failed, EvidenceFailure{seq, "proofs into the same block or checkpoint disagree on its leaf count"})
+			continue
+		}
+		if m := LeafCountMismatch(e.Proof, count); m != "" {
+			r.Failed = append(r.Failed, EvidenceFailure{seq, m})
+			continue
+		}
+		blockCounts[e.Proof.BlockRoot], checkpointCounts[root] = e.Proof.BlockLeafCount, e.Proof.CheckpointLeafCount
 		red := e.Event.Redacted
 		if e.Event.Redaction != nil {
 			red = e.Event.Redaction.Mode == "COMMITMENT_ONLY"
@@ -163,6 +286,11 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 			}
 			r.CommitmentOnly++
 			redactedCount++
+		} else if unknown && e.Event.Canonical != nil {
+			// A preimage cannot be bound under a layout this verifier does not implement, and passing it
+			// would let the producer switch leaf binding off (DEWP §4.5/§7.2 rule 1).
+			r.Failed = append(r.Failed, EvidenceFailure{seq, fmt.Sprintf("canonical preimage under unknown profile %q cannot be bound to its leaf", b.Profile)})
+			continue
 		} else if unknown {
 			r.CommitmentOnly++
 		} else if e.Event.Canonical == nil {
@@ -185,6 +313,12 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 				r.Failed = append(r.Failed, EvidenceFailure{seq, "leaf hash does not match the event content"})
 				continue
 			}
+			// The redaction record is unsigned and is no counter source where a preimage exists (§7.2).
+			if rc := e.Event.Redaction; rc != nil && rc.Commitment != nil && !matchesPtr(rc.Commitment.TenantSeq, c.TenantSeq) {
+				r.Failed = append(r.Failed, EvidenceFailure{seq, "redaction record tenantSeq does not match the committed value"})
+				continue
+			}
+			// A bundle naming no tenant (ID "") has none for a tenant-bound entry to belong to.
 			if e.Event.Canonical.TenantID != nil && *e.Event.Canonical.TenantID != b.Tenant.ID {
 				r.Failed = append(r.Failed, EvidenceFailure{seq, "entry belongs to another tenant"})
 				continue
@@ -199,19 +333,24 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 			r.ContentVerified++
 		}
 	}
-	// Completeness is a separate check and reads committed counters before display fallbacks.
+	// Completeness is a separate check. An entry WITH a preimage reads its counter from it alone — a
+	// null there means no counter (§7.2 rule 5); only an entry without one falls back to the unsigned
+	// redaction record and display copy (rule 2).
 	for _, e := range b.Entries {
 		seq := e.Event.Seq
 		var raw *string
 		if e.Event.Canonical != nil {
+			if unknown {
+				continue // not leaf-bound under an unknown profile; that entry already failed
+			}
 			raw = e.Event.Canonical.TenantSeq
-		}
-		if raw == nil && e.Event.Redaction != nil && e.Event.Redaction.Commitment != nil {
-			raw = e.Event.Redaction.Commitment.TenantSeq
-			unbound = unbound || raw != nil
-		}
-		if raw == nil {
-			raw = e.Event.TenantSeq
+		} else {
+			if e.Event.Redaction != nil && e.Event.Redaction.Commitment != nil {
+				raw = e.Event.Redaction.Commitment.TenantSeq
+			}
+			if raw == nil {
+				raw = e.Event.TenantSeq
+			}
 			unbound = unbound || raw != nil
 		}
 		if raw == nil {
@@ -236,7 +375,7 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 		}
 	}
 	if unknown {
-		r.Notes = append(r.Notes, "Unknown canonical profile; content cannot be bound to its leaf")
+		r.Notes = append(r.Notes, "Unknown canonical profile; content cannot be bound to its leaf, so an entry carrying a preimage fails")
 	}
 	if redactedCount > 0 {
 		r.Notes = append(r.Notes, "COMMITMENT_ONLY entries prove inclusion, not their displayed details")
@@ -245,7 +384,7 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 		r.Notes = append(r.Notes, "Some entries carry no tenantSeq; completeness cannot be checked across them")
 	}
 	if unbound {
-		r.Notes = append(r.Notes, "Some entries' tenantSeq is NOT covered by the Merkle leaf")
+		r.Notes = append(r.Notes, "Some entries carry no canonical preimage (COMMITMENT_ONLY), so their tenantSeq was read from the redaction record or display copy and is NOT covered by the Merkle leaf")
 	}
 	if c := b.TenantSequenceCommitment; c != nil && first != nil && last != nil {
 		cf, a := parseCounter(c.FirstTenantSeq)
@@ -271,8 +410,8 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 		}
 	}
 	for _, c := range cp {
-		rv := EvidenceRootVerification{Root: c.Root, AnchorRef: c.AnchorRef, VerifiedIssuers: []string{}}
-		if o.AnchorPolicy != nil && o.ResolveAnchorKey != nil {
+		rv := EvidenceRootVerification{Root: c.Root, AnchorRef: c.AnchorRef, VerifiedIssuers: []string{}, WitnessTimes: map[string]int64{}}
+		if o.AnchorPolicy != nil {
 			cands := caller
 			if len(cands) == 0 {
 				cands = c.Anchors
@@ -288,9 +427,20 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 					}
 				}
 			}
-			q := VerifyAnchorQuorum(cands, c.Root, *o.AnchorPolicy, o.ResolveAnchorKey, div, o.ExternalKeys)
-			rv.AnchorVerified = bp(q.OK)
+			expected, _ := effective(c.Root)
+			// §5.3/§6.3: a checkpoint stating no chain hash or time (and no record supplying them) cannot
+			// hold its anchors to anything, so it never counts as anchored. Divergence is still evaluated.
+			positionUnknown := expected.ChainHash == nil || expected.AnchoredAt == nil
+			if positionUnknown {
+				r.Notes = append(r.Notes, fmt.Sprintf("checkpoint %s carries no chainHash/anchoredAt and no trusted checkpoint record supplies them; its anchors cannot be held to a position and time (DEWP §5.3), so it is not anchored", c.ID))
+			}
+			q := VerifyAnchorQuorumFor(cands, c.Root, *o.AnchorPolicy, o.ResolveAnchorKey, div, o.ExternalKeys, &expected)
+			rv.AnchorVerified = bp(q.OK && !positionUnknown)
 			rv.VerifiedIssuers = q.VerifiedIssuers
+			if positionUnknown {
+				rv.VerifiedIssuers = []string{}
+			}
+			rv.WitnessTimes = q.WitnessTimes
 			if q.Divergence {
 				r.Failed = append(r.Failed, EvidenceFailure{"-", "ANCHOR DIVERGENCE: " + q.Reason})
 			} else if !q.OK {
@@ -302,7 +452,7 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 		}
 		r.Roots = append(r.Roots, rv)
 	}
-	if o.AnchorPolicy == nil || o.ResolveAnchorKey == nil {
+	if o.AnchorPolicy == nil {
 		r.Notes = append(r.Notes, "Both anchor policy and key resolver are required to evaluate root signatures")
 	}
 	if len(caller) == 0 && o.AnchorPolicy != nil {
@@ -320,6 +470,6 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 			}
 		}
 	}
-	r.OK = len(r.Failed) == 0 && len(b.Entries) > 0 && o.TrustedRoots != nil && all
+	r.OK = len(r.Failed) == 0 && len(b.Entries) > 0 && trustedGiven && all
 	return r
 }

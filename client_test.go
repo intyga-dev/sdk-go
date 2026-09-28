@@ -47,7 +47,7 @@ func TestRequireApprovalHappyPath(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "test-token"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "test-token"})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -84,7 +84,7 @@ func TestAuthorizeDeniedStopsPolling(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
 	res, err := client.RequireApproval(context.Background(), "delete prod", RequireApprovalOptions{
 		AuthorizeOptions: AuthorizeOptions{Target: "prod-db"},
 		Interval:         10 * time.Millisecond,
@@ -112,7 +112,7 @@ func TestTokenExchange(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
 	tok, err := client.Token(context.Background())
 	if err != nil {
 		t.Fatalf("Token: %v", err)
@@ -172,7 +172,7 @@ func TestTokenRefreshesBeforeExpiry(t *testing.T) {
 	defer srv.Close()
 
 	clock := &fakeClock{now: time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)}
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
 	client.now = clock.Now
 
 	tok, err := client.Token(context.Background())
@@ -222,7 +222,7 @@ func TestTokenWithoutExpiresInIsCachedIndefinitely(t *testing.T) {
 	defer srv.Close()
 
 	clock := &fakeClock{now: time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)}
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
 	client.now = clock.Now
 
 	if _, err := client.Token(context.Background()); err != nil {
@@ -249,7 +249,7 @@ func TestTokenNonNumericExpiresInIsIgnored(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
 	tok, err := client.Token(context.Background())
 	if err != nil {
 		t.Fatalf("Token: %v", err)
@@ -284,7 +284,7 @@ func TestUnauthorizedRetriesExchangeOnce(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
 	res, err := client.Authorize(context.Background(), "wire", AuthorizeOptions{Target: "prod-payments", ActionType: "wire_transfer"})
 	if err != nil {
 		t.Fatalf("Authorize should have succeeded on the retry: %v", err)
@@ -315,7 +315,7 @@ func TestUnauthorizedRetriesOnlyOnce(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
 	_, err := client.Status(context.Background(), "n_dead")
 	if err == nil {
 		t.Fatal("expected the second 401 to surface as an error")
@@ -343,7 +343,7 @@ func TestExplicitTokenIsNotReExchangedOn401(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "explicit", ClientID: "cid", ClientSecret: "secret"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "explicit", ClientID: "cid", ClientSecret: "secret"})
 	_, err := client.Authorize(context.Background(), "wire", AuthorizeOptions{Target: "prod-payments"})
 	if err == nil {
 		t.Fatal("expected the 401 to surface as an error")
@@ -365,7 +365,7 @@ func TestConcurrentTokenCallsExchangeOnce(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, ClientID: "cid", ClientSecret: "secret"})
 	const callers = 16
 	var wg sync.WaitGroup
 	tokens := make([]string, callers)
@@ -413,7 +413,7 @@ func TestConsumeRebinding(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
 	out, err := client.Consume(context.Background(), "n_1", "prod-payments", "wire_transfer", map[string]interface{}{"amount": 5000})
 	if err != nil {
 		t.Fatalf("Consume: %v", err)
@@ -427,7 +427,7 @@ func TestConsumeRebinding(t *testing.T) {
 // gateway silently defaults a missing one to "global" — so refusing client-side is the only place
 // the caller finds out.
 func TestTargetIsRequired(t *testing.T) {
-	client := NewClient(ClientOptions{GatewayURL: "http://127.0.0.1:1", Token: "t"})
+	client := mustClient(t, ClientOptions{GatewayURL: "http://127.0.0.1:1", Token: "t"})
 
 	if _, err := client.Authorize(context.Background(), "wire", AuthorizeOptions{ActionType: "wire"}); err == nil {
 		t.Fatal("Authorize accepted an empty Target; the gateway would have signed target=global")
@@ -454,7 +454,7 @@ func TestAuthorizeSendsTarget(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
 	if _, err := client.Authorize(context.Background(), "Wire $5,000", AuthorizeOptions{
 		Target:     "prod-payments",
 		ActionType: "wire_transfer",
@@ -476,7 +476,7 @@ func TestAuthorizeOmitsUnsetActionType(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := NewClient(ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
 	if _, err := client.Authorize(context.Background(), "Wire", AuthorizeOptions{Target: "prod-payments"}); err != nil {
 		t.Fatalf("Authorize: %v", err)
 	}
@@ -485,4 +485,138 @@ func TestAuthorizeOmitsUnsetActionType(t *testing.T) {
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("content-type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func TestIssuedAgentContextAndPublicLookup(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]interface{}{"nonce": "ctx", "status": "PENDING", "agentContext": map[string]interface{}{"nbf": "issued"}})
+	})
+	mux.HandleFunc("/authorize/ctx", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]interface{}{"status": "APPROVED", "agentContext": map[string]interface{}{"nbf": "poll-must-not-replace"}})
+	})
+	mux.HandleFunc("/verify/hash", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Error("public lookup sent credentials")
+		}
+		writeJSON(w, map[string]interface{}{"verified": true, "status": "SIGNED", "documentHash": "hash"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	result, err := client.RequireApproval(context.Background(), "wire", RequireApprovalOptions{AuthorizeOptions: AuthorizeOptions{Target: "prod"}})
+	if err != nil || result.AgentContext["nbf"] != "issued" {
+		t.Fatalf("lost issuance context: %+v %v", result, err)
+	}
+	public := mustClient(t, ClientOptions{GatewayURL: srv.URL})
+	found, err := public.Verify(context.Background(), "hash")
+	if err != nil || !found.Verified {
+		t.Fatalf("public lookup requires credentials: %+v %v", found, err)
+	}
+}
+
+func TestDefaultTransportRefusesAuthenticatedRedirect(t *testing.T) {
+	var forwarded atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/sink", http.StatusTemporaryRedirect)
+	})
+	mux.HandleFunc("/sink", func(w http.ResponseWriter, r *http.Request) {
+		forwarded.Add(1)
+		writeJSON(w, map[string]interface{}{"access_token": "wrong"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL + "/", ClientID: "id", ClientSecret: "secret"})
+	if _, err := client.Token(context.Background()); err == nil || !strings.Contains(err.Error(), "307") {
+		t.Fatalf("redirect accepted: %v", err)
+	}
+	if forwarded.Load() != 0 {
+		t.Fatal("credentialed request followed a redirect")
+	}
+}
+
+func TestTruncatedBodyIsNotAcceptedEvenWhenJSONIsComplete(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "500")
+		writeJSON(w, map[string]interface{}{"access_token": "t", "status": "APPROVED"})
+	}))
+	defer srv.Close()
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, ClientID: "id", ClientSecret: "secret"})
+	if _, err := client.Token(context.Background()); err == nil {
+		t.Fatal("accepted truncated token response")
+	}
+	client = mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	if _, err := client.Status(context.Background(), "nonce"); err == nil {
+		t.Fatal("accepted truncated approval response")
+	}
+}
+
+func TestLateApprovalIsExpired(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]interface{}{"nonce": "late", "status": "PENDING"})
+	})
+	mux.HandleFunc("/authorize/late", func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(30 * time.Millisecond)
+		writeJSON(w, map[string]interface{}{"status": "APPROVED"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	result, err := client.RequireApproval(context.Background(), "wire", RequireApprovalOptions{AuthorizeOptions: AuthorizeOptions{Target: "prod"}, Timeout: 10 * time.Millisecond, Interval: time.Millisecond})
+	if err != nil || result.Status != StatusExpired || result.Nonce != "late" {
+		t.Fatalf("late approval accepted: %+v %v", result, err)
+	}
+}
+
+// mustClient is NewClient for tests whose gateway URL is valid by construction.
+func mustClient(t *testing.T, opts ClientOptions) *Client {
+	t.Helper()
+	c, err := NewClient(opts)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return c
+}
+
+// I11: a plain-http gateway would carry the bearer token or client secret in the clear, so NewClient
+// refuses it before any request exists. Loopback stays usable for a local gateway.
+func TestNewClientRefusesNonHTTPSGateway(t *testing.T) {
+	for _, bad := range []string{
+		"http://gw.example",
+		"http://10.0.0.5:8787",
+		"http://128.0.0.1",
+		"http://localhost.evil.example",
+		"http://[::2]",
+		"ftp://gw.example",
+		"gw.example",
+		"",
+	} {
+		if c, err := NewClient(ClientOptions{GatewayURL: bad, Token: "t"}); err == nil || c != nil {
+			t.Errorf("NewClient accepted %q", bad)
+		}
+	}
+	if _, err := NewClient(ClientOptions{GatewayURL: "http://gw.example"}); err == nil ||
+		!strings.Contains(err.Error(), "must use https://") {
+		t.Errorf("error does not name the rule: %v", err)
+	}
+	for _, ok := range []string{
+		"https://gw.example",
+		"https://gw.example/",
+		"HTTPS://gw.example",
+		"http://localhost:8787",
+		"http://LOCALHOST",
+		"http://127.0.0.1:8787",
+		"http://127.200.3.4",
+		"http://[::1]:8787",
+	} {
+		if _, err := NewClient(ClientOptions{GatewayURL: ok, Token: "t"}); err != nil {
+			t.Errorf("NewClient refused %q: %v", ok, err)
+		}
+	}
+	c := mustClient(t, ClientOptions{GatewayURL: "https://gw.example//", Token: "t"})
+	if c.opts.GatewayURL != "https://gw.example" {
+		t.Errorf("trailing slashes kept: %q", c.opts.GatewayURL)
+	}
 }

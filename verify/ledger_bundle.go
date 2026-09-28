@@ -2,6 +2,7 @@ package verify
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 )
 
@@ -24,18 +25,20 @@ type BundleEvent struct {
 	Canonical  *AuditLeaf `json:"canonical,omitempty"`
 }
 type ProofBundle struct {
-	Protocol     string         `json:"protocol,omitempty"`
-	Kind         string         `json:"kind"`
-	Version      interface{}    `json:"version"`
-	Profile      string         `json:"profile,omitempty"`
-	ExportedAt   string         `json:"exportedAt"`
-	Event        BundleEvent    `json:"event"`
-	Proof        InclusionProof `json:"proof"`
-	Anchor       *SignedAnchor  `json:"anchor,omitempty"`
-	Anchors      []SignedAnchor `json:"anchors,omitempty"`
-	AnchorRef    *string        `json:"anchorRef,omitempty"`
-	Anchored     *bool          `json:"anchored,omitempty"`
-	LegacyAnchor *struct {
+	invalidProtocol   bool
+	Protocol          string          `json:"protocol,omitempty"`
+	AlgorithmRegistry json.RawMessage `json:"algorithmRegistry,omitempty"`
+	Kind              string          `json:"kind"`
+	Version           interface{}     `json:"version"`
+	Profile           string          `json:"profile,omitempty"`
+	ExportedAt        string          `json:"exportedAt"`
+	Event             BundleEvent     `json:"event"`
+	Proof             InclusionProof  `json:"proof"`
+	Anchor            *SignedAnchor   `json:"anchor,omitempty"`
+	Anchors           []SignedAnchor  `json:"anchors,omitempty"`
+	AnchorRef         *string         `json:"anchorRef,omitempty"`
+	Anchored          *bool           `json:"anchored,omitempty"`
+	LegacyAnchor      *struct {
 		DailyRoot *string `json:"dailyRoot"`
 		AnchorRef *string `json:"anchorRef"`
 		Anchored  bool    `json:"anchored"`
@@ -55,9 +58,14 @@ type VerificationProperties struct {
 }
 type BundleChecks struct{ Inclusion, RootConsistency, LeafBinding, HeaderBinding, Anchored CheckResult }
 type BundleVerification struct {
-	OK                bool                   `json:"ok"`
-	DailyRoot         *string                `json:"dailyRoot"`
-	RootSource        string                 `json:"rootSource"`
+	OK        bool    `json:"ok"`
+	DailyRoot *string `json:"dailyRoot"`
+	// RootSource is "caller-supplied", "self-asserted" or "none". A supplied root is never labelled
+	// "independent": the verifier cannot tell one recorded independently from one copied out of the
+	// bundle itself.
+	RootSource string `json:"rootSource"`
+	// WitnessTimes: authenticated external witness time per anchor issuer (Unix seconds).
+	WitnessTimes      map[string]int64       `json:"witnessTimes"`
 	Properties        VerificationProperties `json:"properties"`
 	VerificationLevel string                 `json:"verificationLevel"`
 	Checks            BundleChecks           `json:"checks"`
@@ -69,6 +77,29 @@ type BundleVerifyOptions struct {
 	AnchorPolicy     *AnchorPolicy
 	ResolveAnchorKey AnchorKeyResolver
 	ExternalKeys     ExternalAnchorKeys
+	// TrustedCheckpoint is the caller's record of the proof's checkpoint (its roots-file line). A single
+	// proof carries no checkpoint, so without it no EXTERNAL anchor counts: the §5.3 time bound would be
+	// measured against the anchor's own producer-chosen timestamp. Its Root stands in for TrustedRoot
+	// when that is empty and must equal it otherwise; its EntryCount bounds the proof's leaf counts.
+	TrustedCheckpoint *TrustedCheckpoint
+}
+
+// Retain the distinction between an absent legacy declaration and an explicit empty protocol.
+func (b *ProofBundle) UnmarshalJSON(data []byte) error {
+	type wire ProofBundle
+	var value wire
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	var envelope struct {
+		Protocol *string `json:"protocol"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return err
+	}
+	value.invalidProtocol = envelope.Protocol != nil && *envelope.Protocol == ""
+	*b = ProofBundle(value)
+	return nil
 }
 
 func check(pass *bool, detail string) CheckResult { return CheckResult{pass, detail} }
@@ -106,15 +137,48 @@ func DeriveVerificationLevel(p VerificationProperties, hasSigner bool) string {
 	}
 	return "CONTENT_VERIFIED"
 }
+
+// DEWP §7/§12; numeric revisions 1 and 2 are accepted only for pre-envelope legacy exports.
+func supportedEnvelope(protocol string, version interface{}, registry json.RawMessage) bool {
+	if protocol != "" && protocol != "DEWP" {
+		return false
+	}
+	validVersion := version == "1.0"
+	if protocol == "" {
+		switch v := version.(type) {
+		case int:
+			validVersion = v == 1 || v == 2
+		case float64:
+			validVersion = v == 1 || v == 2
+		}
+	}
+	if !validVersion {
+		return false
+	}
+	if len(registry) == 0 {
+		return true
+	}
+	var a map[string]interface{}
+	return json.Unmarshal(registry, &a) == nil && a["hashAlgorithm"] == "SHA-256" && a["serialization"] == "RFC8785-JCS" && a["merkleVersion"] == float64(1)
+}
+
 func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 	notes := []string{}
-	kindBad := b.Kind != BundleKind
+	kindBad := b.Kind != BundleKind || (b.invalidProtocol || !supportedEnvelope(b.Protocol, b.Version, b.AlgorithmRegistry))
 	if kindBad {
-		notes = append(notes, fmt.Sprintf("Refusing bundle kind %q (expected %q) — DEWP §6.5.", b.Kind, BundleKind))
+		notes = append(notes, fmt.Sprintf("Refusing DEWP envelope (kind %q): unsupported kind, protocol, version or algorithm registry.", b.Kind))
 	}
 	unknown := b.Profile != "" && b.Profile != AuditProfile
+	tc := o.TrustedCheckpoint
 	root := o.TrustedRoot
-	source := "independent"
+	conflict := tc != nil && root != "" && tc.Root != root
+	if conflict {
+		notes = append(notes, "The supplied trusted checkpoint names a different root than the trusted root; refusing to pick one.")
+	}
+	if root == "" && tc != nil {
+		root = tc.Root
+	}
+	source := "caller-supplied"
 	if root == "" {
 		source = "self-asserted"
 		if b.Anchor != nil {
@@ -126,7 +190,7 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 		if root == "" {
 			root = b.Proof.CheckpointRoot
 		}
-		notes = append(notes, "No independent root supplied — verifying against the root inside the bundle.")
+		notes = append(notes, "No root supplied — verifying against the root inside the bundle; use a root obtained earlier or from the published roots file.")
 	}
 	var rp *string
 	if root != "" {
@@ -135,6 +199,12 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 		source = "none"
 	}
 	incl := root != "" && VerifyInclusionProof(b.Proof, root)
+	if tc != nil && root == tc.Root {
+		if m := LeafCountMismatch(b.Proof, tc.EntryCount); m != "" {
+			incl = false
+			notes = append(notes, m)
+		}
+	}
 	cons := root != "" && b.Proof.CheckpointRoot == root
 	ci := check(bp(incl), "inclusion proof verification")
 	cr := check(bp(cons), "checkpoint root consistency")
@@ -155,7 +225,8 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 		content = incl && cons && good && hg
 	}
 	anchorOK := false
-	if o.AnchorPolicy != nil && o.ResolveAnchorKey != nil && root != "" {
+	witnessTimes := map[string]int64{}
+	if o.AnchorPolicy != nil && root != "" {
 		cands := o.Anchors
 		if cands == nil {
 			cands = append(cands, b.Anchors...)
@@ -163,13 +234,23 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 				cands = append(cands, *b.Anchor)
 			}
 		}
-		q := VerifyAnchorQuorum(cands, root, *o.AnchorPolicy, o.ResolveAnchorKey, o.Anchors, o.ExternalKeys)
+		// The caller's record is the only position and time an anchor over a single proof can be held
+		// to; an empty expectation keeps external witnesses from counting without one.
+		expected := &ExpectedCheckpoint{}
+		if tc != nil {
+			expected = &ExpectedCheckpoint{SeqStart: tc.SeqStart, SeqEnd: tc.SeqEnd, ChainHash: tc.ChainHash, AnchoredAt: tc.AnchoredAt}
+		}
+		q := VerifyAnchorQuorumFor(cands, root, *o.AnchorPolicy, o.ResolveAnchorKey, o.Anchors, o.ExternalKeys, expected)
 		anchorOK = incl && cons && q.OK
+		witnessTimes = q.WitnessTimes
 		if q.Divergence {
-			return BundleVerification{DailyRoot: rp, RootSource: source, VerificationLevel: "INVALID", Notes: append(notes, q.Reason)}
+			return BundleVerification{DailyRoot: rp, RootSource: source, WitnessTimes: witnessTimes, VerificationLevel: "INVALID", Notes: append(notes, q.Reason)}
 		}
 		if q.Reason != "" {
 			notes = append(notes, q.Reason)
+		}
+		if q.Note != "" {
+			notes = append(notes, q.Note)
 		}
 	}
 	has := b.Event.Canonical != nil && b.Event.Canonical.Signature != nil && *b.Event.Canonical.Signature != "" && b.Event.Canonical.SignerPublicKey != nil && *b.Event.Canonical.SignerPublicKey != ""
@@ -179,8 +260,11 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 	if kindBad {
 		level = "INVALID"
 	}
-	ok := !kindBad && source == "independent" && incl && cons && (b.Event.Canonical == nil || content) && (o.AnchorPolicy == nil || anchorOK)
-	return BundleVerification{ok, rp, source, p, level, BundleChecks{ci, cr, leaf, header, check(nil, "producer claim only")}, notes}
+	ok := !kindBad && !conflict && source == "caller-supplied" && incl && cons && (b.Event.Canonical == nil || content) && (o.AnchorPolicy == nil || anchorOK)
+	return BundleVerification{
+		OK: ok, DailyRoot: rp, RootSource: source, WitnessTimes: witnessTimes, Properties: p, VerificationLevel: level,
+		Checks: BundleChecks{ci, cr, leaf, header, check(nil, "producer claim only")}, Notes: notes,
+	}
 }
 func displayBundleMatches(e BundleEvent, p InclusionProof) bool {
 	c := e.Canonical

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -41,6 +42,9 @@ const (
 
 // ClientOptions configures a Client.
 type ClientOptions struct {
+	// GatewayURL must be https://. Plain http:// is accepted only for a loopback host (localhost,
+	// 127.0.0.0/8, ::1) for local development; anything else is refused by NewClient, because every
+	// request carries a bearer token or client secret.
 	GatewayURL string
 	// Token is a pre-minted bearer token (agent or human). If empty, ClientID/ClientSecret are exchanged.
 	// An explicit Token is used as-is: it is never re-exchanged, and a 401 on it is returned to the
@@ -72,13 +76,57 @@ type Client struct {
 	now func() time.Time
 }
 
-// NewClient constructs a Client. It does not perform any network I/O.
-func NewClient(opts ClientOptions) *Client {
+// NewClient constructs a Client. It does not perform any network I/O. It returns an error when
+// GatewayURL is not https:// (plain http:// is accepted only for a loopback host, for local
+// development), so a misconfiguration fails before any credential is sent.
+func NewClient(opts ClientOptions) (*Client, error) {
+	gatewayURL, err := validateGatewayURL(opts.GatewayURL)
+	if err != nil {
+		return nil, err
+	}
 	httpClient := opts.HTTPClient
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 30 * time.Second}
+		httpClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	}
-	return &Client{opts: opts, http: httpClient, now: time.Now}
+	opts.GatewayURL = gatewayURL
+	return &Client{opts: opts, http: httpClient, now: time.Now}, nil
+}
+
+// validateGatewayURL returns raw without trailing slashes, or an error unless it is https:// or
+// http:// to a loopback host. The same rule every Intyga client applies (TypeScript, Python, Rust,
+// Java): change them together.
+func validateGatewayURL(raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return "", fmt.Errorf("intyga: GatewayURL is not a valid absolute URL: %q", raw)
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return strings.TrimRight(raw, "/"), nil
+	case "http":
+		if isLoopbackHost(u.Hostname()) {
+			return strings.TrimRight(raw, "/"), nil
+		}
+	}
+	return "", fmt.Errorf("intyga: GatewayURL must use https:// (got %s://%s): Intyga clients send "+
+		"credentials on every request and refuse plain http except to a loopback host (localhost, "+
+		"127.0.0.0/8, ::1) for local development", u.Scheme, u.Host)
+}
+
+// isLoopbackHost reports whether host (as returned by url.URL.Hostname, brackets stripped) is
+// localhost, an IPv4 address in 127.0.0.0/8, or the IPv6 loopback ::1.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	if strings.Contains(host, ":") {
+		return ip.Equal(net.IPv6loopback)
+	}
+	return ip.To4() != nil && ip.To4()[0] == 127
 }
 
 // maxRefreshMargin caps how early a token is re-exchanged ahead of its expiry. The margin is
@@ -118,8 +166,9 @@ type AuthorizeOptions struct {
 
 // AuthorizeResponse is returned by Authorize.
 type AuthorizeResponse struct {
-	Nonce  string         `json:"nonce"`
-	Status ApprovalStatus `json:"status"`
+	Nonce        string                 `json:"nonce"`
+	Status       ApprovalStatus         `json:"status"`
+	AgentContext map[string]interface{} `json:"agentContext,omitempty"`
 }
 
 // ConsumeResult is returned by Consume.
@@ -136,6 +185,8 @@ type ApprovalResult struct {
 	// Nonce is the challenge this result belongs to. Set by RequireApproval so callers can pass it as
 	// expected.Nonce to verify.VerifyApprovalReceipt and record it as redeemed for their own single-use check.
 	Nonce string `json:"nonce,omitempty"`
+	// Context frozen at issuance, retained independently of the returned receipt.
+	AgentContext map[string]interface{} `json:"agentContext,omitempty"`
 }
 
 // VerifyResult is the public witness lookup response.
@@ -176,7 +227,10 @@ func (c *Client) Token(ctx context.Context) (string, error) {
 		return "", err
 	}
 	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return "", err
+	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return "", fmt.Errorf("token exchange failed: %d %s", res.StatusCode, string(body))
 	}
@@ -232,7 +286,9 @@ func (c *Client) Authorize(ctx context.Context, actionDescription string, opts A
 	if opts.ActionType != "" {
 		body["actionType"] = opts.ActionType
 	}
-	if opts.AgentContext != nil { body["agentContext"] = opts.AgentContext }
+	if opts.AgentContext != nil {
+		body["agentContext"] = opts.AgentContext
+	}
 	if opts.TimeoutSeconds > 0 {
 		body["timeout"] = opts.TimeoutSeconds
 	}
@@ -309,18 +365,30 @@ func (c *Client) RequireApproval(ctx context.Context, actionDescription string, 
 	authOpts := opts.AuthorizeOptions
 	authOpts.TimeoutSeconds = int((timeout + time.Second - 1) / time.Second) // ceil to seconds
 
+	deadline := time.Now().Add(timeout)
 	authRes, err := c.Authorize(ctx, actionDescription, authOpts)
 	if err != nil {
 		return ApprovalResult{}, err
 	}
 	nonce := authRes.Nonce
 
-	deadline := time.Now().Add(timeout)
+	expired := func() ApprovalResult {
+		return ApprovalResult{Status: StatusExpired, Nonce: nonce, AgentContext: authRes.AgentContext}
+	}
 	consecutiveErrors := 0
 	for {
+		if !time.Now().Before(deadline) {
+			return expired(), nil
+		}
 		// A human approval can outlast a transient 502 or socket hangup — don't discard the whole wait
 		// over one bad poll. Only give up once the gateway looks genuinely unreachable.
 		r, err := c.Status(ctx, nonce)
+		if ctx.Err() != nil {
+			return ApprovalResult{}, ctx.Err()
+		}
+		if !time.Now().Before(deadline) {
+			return expired(), nil
+		}
 		if err != nil {
 			consecutiveErrors++
 			if consecutiveErrors >= maxPollErrors {
@@ -330,17 +398,18 @@ func (c *Client) RequireApproval(ctx context.Context, actionDescription string, 
 			consecutiveErrors = 0
 			if r.Status != StatusPending {
 				r.Nonce = nonce
+				r.AgentContext = authRes.AgentContext
 				return r, nil
 			}
 		}
 
 		if time.Now().After(deadline) {
-			return ApprovalResult{Status: StatusExpired, Nonce: nonce}, nil
+			return ApprovalResult{Status: StatusExpired, Nonce: nonce, AgentContext: authRes.AgentContext}, nil
 		}
 		select {
 		case <-ctx.Done():
 			return ApprovalResult{}, ctx.Err()
-		case <-time.After(interval):
+		case <-time.After(min(interval, time.Until(deadline))):
 		}
 	}
 }
@@ -370,9 +439,13 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body interface
 	}
 	retried := false
 	for {
-		token, err := c.Token(ctx)
-		if err != nil {
-			return err
+		var token string
+		var err error
+		if !strings.HasPrefix(path, "/verify/") {
+			token, err = c.Token(ctx)
+			if err != nil {
+				return err
+			}
 		}
 		var reader io.Reader
 		if body != nil {
@@ -382,7 +455,9 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body interface
 		if err != nil {
 			return err
 		}
-		req.Header.Set("authorization", "Bearer "+token)
+		if token != "" {
+			req.Header.Set("authorization", "Bearer "+token)
+		}
 		if body != nil {
 			req.Header.Set("content-type", "application/json")
 		}
@@ -390,9 +465,12 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body interface
 		if err != nil {
 			return err
 		}
-		respBody, _ := io.ReadAll(res.Body)
+		respBody, readErr := io.ReadAll(res.Body)
 		res.Body.Close()
-		if res.StatusCode == http.StatusUnauthorized && c.opts.Token == "" && !retried {
+		if readErr != nil {
+			return readErr
+		}
+		if res.StatusCode == http.StatusUnauthorized && token != "" && c.opts.Token == "" && !retried {
 			retried = true
 			c.invalidateToken(token)
 			continue

@@ -5,6 +5,19 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 
 ## [Unreleased]
 
+- **Breaking (I11):** `NewClient` now returns `(*Client, error)` and refuses a `GatewayURL` that is
+  not `https://`, except `http://` to a loopback host (`localhost`, `127.0.0.0/8`, `::1`) for local
+  development, so a misconfiguration fails before any credential is sent.
+
+- Refuse approvals received after the caller's monotonic wait deadline; include challenge creation
+  in the wait window and cap polling sleeps to its remaining duration.
+
+- Preserve challenge-issued agent context through approval polling for DIV continuity checks.
+- Public witness lookups require no credentials and refuse non-success HTTP responses.
+- Default HTTP transports use finite request timeouts and refuse redirects; caller-supplied
+  transports remain the caller's responsibility.
+- Propagate response-body read failures instead of accepting truncated responses.
+
 - Rebuilt against the DIV Intent Payload's new REQUIRED `evidence` field (DIV §4.3.4), which is
   `null` in this version. No API change; receipts carry the field inside `canonicalPayload` only.
 

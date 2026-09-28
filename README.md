@@ -22,11 +22,14 @@ import (
 	verify "github.com/intyga-dev/sdk-go/verify"
 )
 
-client := intyga.NewClient(intyga.ClientOptions{
+client, err := intyga.NewClient(intyga.ClientOptions{
 	GatewayURL:   "https://api.intyga.com",
 	ClientID:     os.Getenv("INTYGA_CLIENT_ID"),
 	ClientSecret: os.Getenv("INTYGA_CLIENT_SECRET"),
 })
+if err != nil {
+	log.Fatal(err) // GatewayURL must be https:// (http:// only to a loopback host)
+}
 
 params := map[string]interface{}{"cluster": "prod-db-1"}
 
@@ -54,7 +57,12 @@ res := verify.VerifyApprovalReceipt(*r.Receipt, verify.Expected{
 	ActionType: "wipe_production",
 	Params:     params,
 	Approvers:  verify.ApproverTrustAnchor{PublicKeys: trustedApproverKeys()},
-}, verify.VerifyOptions{})
+}, verify.VerifyOptions{
+	// REQUIRED for passkey receipts (the normal flow): the approval console's exact origin and
+	// RP ID, from the trust-anchor file exported in the console (its `webauthn` block).
+	ExpectedOrigin: os.Getenv("INTYGA_WEBAUTHN_ORIGIN"),
+	ExpectedRpID:   os.Getenv("INTYGA_WEBAUTHN_RP_ID"),
+})
 if !res.OK {
 	log.Fatalf("refusing to proceed: %s", res.Reason)
 }
@@ -76,7 +84,9 @@ proof of agent integrity.
 
 ## API
 
-- `NewClient(ClientOptions)` — construct a client (no I/O).
+- `NewClient(ClientOptions)` — construct a client (no I/O). It returns an error unless `GatewayURL`
+  is `https://`; plain `http://` is accepted only for a loopback host (`localhost`, `127.0.0.0/8`,
+  `::1`) for local development, and the default transport never follows redirects.
 - `RequireApproval(ctx, description, opts)` — create a challenge and block until resolved.
 - `Authorize` / `Status` / `Consume` — the individual steps (create, poll, execution-time re-bind).
   `Authorize` requires `Target`; `Consume` takes `(ctx, nonce, target, actionType, params)` and must be

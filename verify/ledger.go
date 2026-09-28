@@ -11,7 +11,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 )
 
 // DEWP audit-ledger verification (docs/DEWP.md) — Go port. Byte-identical to @intyga/verify
@@ -333,21 +335,54 @@ func VerifyInclusionProof(proof InclusionProof, dailyRoot string) bool {
 		ProofBounds{Index: proof.CheckpointLeafIndex, LeafCount: proof.CheckpointLeafCount})
 }
 
-// AnchorInput is the signable part of an anchor (DEWP §5.2).
+// AnchorInput is the signable part of an anchor (DEWP §5.2): the root, the checkpoint's claimed time,
+// the issuer and algorithm, and the checkpoint's POSITION — its global seq range and §5.4 chain hash.
+// The position is what makes an external witness evidence about one checkpoint rather than about a
+// root string that could be recomputed and witnessed at any later time.
 type AnchorInput struct {
 	DailyRoot string `json:"dailyRoot"`
 	Timestamp string `json:"timestamp"`
 	Issuer    string `json:"issuer"`
 	Algorithm string `json:"algorithm"`
+	SeqStart  string `json:"seqStart"`
+	SeqEnd    string `json:"seqEnd"`
+	ChainHash string `json:"chainHash"`
 }
 
-// AnchorPreimage: JCS of [dailyRoot, timestamp, issuer, algorithm].
+// AnchorPreimage: JCS of [dailyRoot, timestamp, issuer, algorithm, seqStart, seqEnd, chainHash].
 func AnchorPreimage(a AnchorInput) string {
 	// `issuer` is a URL and can carry a query string, so it needs JS-compatible string escaping too.
-	// All four elements are strings, so StableStringify's non-portable-number refusal is
+	// All seven elements are strings, so StableStringify's non-portable-number refusal is
 	// structurally unreachable here and the error can be discarded.
-	s, _ := StableStringify([]interface{}{a.DailyRoot, a.Timestamp, a.Issuer, a.Algorithm})
+	s, _ := StableStringify([]interface{}{a.DailyRoot, a.Timestamp, a.Issuer, a.Algorithm, a.SeqStart, a.SeqEnd, a.ChainHash})
 	return s
+}
+
+var anchorSeqPattern = regexp.MustCompile(`^[0-9]{1,20}$`)
+var anchorTimestampPattern = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$`)
+
+// ParseAnchorTimestampMs reads an exact DEWP §4.3 timestamp (YYYY-MM-DDTHH:mm:ss.sssZ) as milliseconds
+// since the epoch. Strict so every port reads the same instant from the same bytes.
+func ParseAnchorTimestampMs(ts string) (int64, bool) {
+	if !anchorTimestampPattern.MatchString(ts) {
+		return 0, false
+	}
+	t, err := time.Parse("2006-01-02T15:04:05.000Z", ts)
+	if err != nil || t.UTC().Format("2006-01-02T15:04:05.000Z") != ts {
+		return 0, false
+	}
+	return t.UnixMilli(), true
+}
+
+// IsWellFormedAnchor reports whether all seven signed fields have the shapes DEWP §5.2 requires. A
+// missing position field is refused rather than hashed: the preimage would not be one any conformant
+// producer signed.
+func IsWellFormedAnchor(a AnchorInput) bool {
+	_, okTime := ParseAnchorTimestampMs(a.Timestamp)
+	// §5.2 algorithm registry: the label is signed, so any other one is not a §5.2 anchor at all.
+	registered := a.Algorithm == "ES256" || a.Algorithm == "Ed25519" || a.Algorithm == "RSA-PSS"
+	return registered && isHash64(a.DailyRoot) && okTime && anchorSeqPattern.MatchString(a.SeqStart) &&
+		anchorSeqPattern.MatchString(a.SeqEnd) && isHash64(a.ChainHash)
 }
 
 // anchorDigest: the RAW 32-byte anchor digest, sha256(0x03 || UTF8(AnchorPreimage)). These bytes —
@@ -386,6 +421,9 @@ type SignedAnchor struct {
 // WebCrypto, and WebCrypto emits only P1363. Refusing those meant a genuine third-party anchor
 // counted toward quorum for a TS/Rust/Python relying party and read as an invalid signature here.
 func VerifyAnchorSignature(anchor SignedAnchor, spkiB64 string) bool {
+	if !IsWellFormedAnchor(anchor.AnchorInput) {
+		return false
+	}
 	keyDER, err := base64.StdEncoding.DecodeString(spkiB64)
 	if err != nil {
 		return false
@@ -412,11 +450,13 @@ func VerifyAnchorSignature(anchor SignedAnchor, spkiB64 string) bool {
 			return false
 		}
 		pub, ok := key.(*rsa.PublicKey)
-		if !ok {
+		// DEWP §5.2 RSA-PSS profile: a modulus of at least 2048 bits, SHA-256 with MGF1-SHA-256 and
+		// a salt exactly the hash length. Auto-detecting the salt (nil options) accepted any length.
+		if !ok || pub.N.BitLen() < 2048 {
 			return false
 		}
 		h := sha256.Sum256(digest[:])
-		return rsa.VerifyPSS(pub, crypto.SHA256, h[:], sig, nil) == nil
+		return rsa.VerifyPSS(pub, crypto.SHA256, h[:], sig, &rsa.PSSOptions{SaltLength: 32, Hash: crypto.SHA256}) == nil
 	default:
 		return false
 	}

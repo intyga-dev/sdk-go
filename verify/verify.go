@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
 )
@@ -137,7 +138,8 @@ type RequesterAttestation struct {
 //
 // Offline checkability differs per field: RequiredApprovals and RequesterCannotApprove are fully
 // verifiable; RequireHardwareKey only partially (an assertion proves WebAuthn, not the authenticator
-// model); AllowedAaguids not at all (the AAGUID lives in registration data, never in an assertion).
+// model); AllowedAaguids not at all (the AAGUID lives in registration data, never in an assertion) —
+// but a non-empty allowlist is refused exactly like RequireHardwareKey for bare-key and offline witnesses.
 // SignerClass is partially checkable: a WEBAUTHN witness's UV flag corroborates a human ceremony,
 // an ES256 witness carries no class evidence — but the verifier's own rule is absolute: refuse any
 // value it does not recognize ("human" is the only class defined today, DIV §4.3.2).
@@ -147,6 +149,12 @@ type ApprovalRequirement struct {
 	AllowedAaguids         []string `json:"allowedAaguids"`
 	RequesterCannotApprove bool     `json:"requesterCannotApprove"`
 	SignerClass            string   `json:"signerClass"`
+}
+
+// RequiresHardwareCredential: RequireHardwareKey, or a non-empty AllowedAaguids model allowlist. A bare
+// key satisfies neither and neither can be met offline (DIV §4.3.2), so every check treats them alike.
+func (r ApprovalRequirement) RequiresHardwareCredential() bool {
+	return r.RequireHardwareKey || len(r.AllowedAaguids) > 0
 }
 
 // knownSignerClasses are the signer classes this verifier can reason about (DIV §4.3.2). "human" is
@@ -195,6 +203,49 @@ const invalidQuorumReason = "signed requirement.requiredApprovals must be an int
 func checkQuorumMinimum(requirement ApprovalRequirement) (bool, string) {
 	if requirement.RequiredApprovals < 1 {
 		return false, invalidQuorumReason
+	}
+	return true, ""
+}
+
+// RequirementFloor is the MINIMUM approval requirement the relying party's own policy demands for
+// this action (DIV §5 step 3d). The signed requirement is authored by whoever composed the bytes the
+// approvers signed — the issuer, or any one approver composing their own payload — so its signature
+// protects it against third parties but NOT against the signers the quorum constrains. Without a
+// floor, a verifier proves only the signers' OWN stated quorum: an approver who is also the requester
+// can sign {requiredApprovals: 1, requesterCannotApprove: false} alone and it verifies.
+//
+// Only strictly weaker signed values are refused; an equal or stricter one passes and the SIGNED
+// value is then enforced. AllowedAaguids is not floored — express that as RequireHardwareKey.
+type RequirementFloor struct {
+	// Integer ≥ 1. The signed requiredApprovals must be at least this.
+	RequiredApprovals int `json:"requiredApprovals"`
+	// When true, the signed requirement must also forbid the requester approving.
+	RequesterCannotApprove bool `json:"requesterCannotApprove"`
+	// When true, the signed requirement must also demand a hardware key.
+	RequireHardwareKey bool `json:"requireHardwareKey"`
+}
+
+// WeakerRequirementReason is the reason stem every port uses for a signed requirement below the
+// caller's floor.
+const WeakerRequirementReason = "signed requirement is weaker than the relying party's policy"
+
+// checkRequirementFloor is DIV §5 step 3d. A nil floor is "none supplied" (legacy behaviour). A
+// malformed floor fails CLOSED rather than silently meaning "no floor".
+func checkRequirementFloor(signed ApprovalRequirement, floor *RequirementFloor) (bool, string) {
+	if floor == nil {
+		return true, ""
+	}
+	if floor.RequiredApprovals < 1 {
+		return false, "expected.Requirement is malformed: RequiredApprovals must be an integer of at least 1"
+	}
+	if signed.RequiredApprovals < floor.RequiredApprovals {
+		return false, fmt.Sprintf("%s: it requires %d approval(s), the policy %d (DIV §5 step 3d)", WeakerRequirementReason, signed.RequiredApprovals, floor.RequiredApprovals)
+	}
+	if floor.RequesterCannotApprove && !signed.RequesterCannotApprove {
+		return false, WeakerRequirementReason + ": it does not forbid the requester approving (DIV §5 step 3d)"
+	}
+	if floor.RequireHardwareKey && !signed.RequireHardwareKey {
+		return false, WeakerRequirementReason + ": it does not require a hardware key (DIV §5 step 3d)"
 	}
 	return true, ""
 }
@@ -284,7 +335,28 @@ type VerifyOptions struct {
 const (
 	authDataFlagUP = 0x01 // User Present
 	authDataFlagUV = 0x04 // User Verified
+	authDataFlagBE = 0x08 // Backup Eligible — the credential may be synced to other devices
+	authDataFlagBS = 0x10 // Backup State — the credential is currently backed up
 )
+
+// backupFlagsProblem: under a signed RequireHardwareKey, a WEBAUTHN witness whose authenticatorData
+// carries the Backup Eligible or Backup State flag cannot count (DIV §4.4.5 rule 6). The flags are
+// covered by the assertion signature, so a relying party can catch an issuer that let a synced passkey
+// sign a hardware-pinned action. BE=0 is the authenticator's own claim, not attestation. Called only
+// for a witness that already verified, so authenticatorData decodes to at least 37 bytes.
+func backupFlagsProblem(w ApprovalWitness) string {
+	if w.SigAlg == nil || *w.SigAlg != "WEBAUTHN" || w.AuthenticatorData == nil {
+		return ""
+	}
+	authData, err := decodeBase64Flexible(*w.AuthenticatorData)
+	if err != nil || len(authData) < 37 {
+		return "authenticatorData is unreadable"
+	}
+	if authData[32]&(authDataFlagBE|authDataFlagBS) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("signer %s used a backup-eligible (synced) passkey — authenticatorData BE/BS flag set — but the signed policy requires a hardware-backed WebAuthn credential", w.SignerDID)
+}
 
 // Expected contains expected context when verifying a receipt. Target and Nonce are asserted from
 // the relying party's own state — never read from the receipt (DIV Target Isolation + replay binding).
@@ -300,6 +372,11 @@ type Expected struct {
 	// DIV threat model anyone able to hand you a receipt could have minted that keypair.
 	// DIV §3 Invariant 3 / §5 step 3.
 	Approvers ApproverTrustAnchor `json:"-"`
+	// Requirement is STRONGLY RECOMMENDED: the minimum requirement YOUR approval rule demands (see
+	// RequirementFloor). Nil keeps the legacy behaviour, which enforces only the quorum the signers
+	// themselves stated. Under a delegation pass the ORDINARY rule — the delegated quorum must already
+	// be at least as strict (DIV §5a.5). VerifyDelegation applies it to the sealing requirement.
+	Requirement *RequirementFloor `json:"requirement,omitempty"`
 }
 
 // ApproverTrustAnchor is the set of approver keys the relying party trusts, resolved from its OWN
@@ -509,6 +586,9 @@ func StableStringify(v interface{}) (string, error) {
 		// Any target, display, DID or param containing one of those five characters recomputed to
 		// different bytes here than in the TS/Rust/Python ports, and this verifier reported a
 		// perfectly valid approval as tampering.
+		if !utf8.ValidString(val) {
+			return "", errInvalidUTF8
+		}
 		return jsMarshalString(val), nil
 	case float64:
 		if err := checkPortableFloat(val); err != nil {
@@ -529,6 +609,9 @@ func StableStringify(v interface{}) (string, error) {
 		// through jsMarshalString like every other string rather than down the default branch.
 		items := make([]string, len(val))
 		for i, x := range val {
+			if !utf8.ValidString(x) {
+				return "", errInvalidUTF8
+			}
 			items[i] = jsMarshalString(x)
 		}
 		return "[" + strings.Join(items, ",") + "]", nil
@@ -552,6 +635,9 @@ func StableStringify(v interface{}) (string, error) {
 		})
 		parts := make([]string, len(keys))
 		for i, k := range keys {
+			if !utf8.ValidString(k) {
+				return "", errInvalidUTF8
+			}
 			s, err := StableStringify(val[k])
 			if err != nil {
 				return "", err
@@ -832,6 +918,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: "missing canonicalPayload"}
 	}
 
+	if why := canonicalTextProblem(receipt.CanonicalPayload); why != "" {
+		return VerifyResult{OK: false, Reason: why}
+	}
 	var fields canonicalFields
 	if err := json.Unmarshal([]byte(receipt.CanonicalPayload), &fields); err != nil {
 		return VerifyResult{OK: false, Reason: "canonicalPayload is not valid JSON"}
@@ -902,8 +991,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: "receipt missing expiration"}
 	}
 
-	// The requirement is part of the SIGNED bytes, so reading it back from the payload is not
-	// circular: a forged value changes the string and fails the byte comparison below.
+	// The requirement is part of the SIGNED bytes, so a third party cannot alter it: a forged value
+	// changes the string and fails the byte comparison below. It does NOT bind the signers themselves
+	// — they authored it — which is why step 3d compares it against expected.Requirement.
 	if fields.Requirement == nil {
 		return VerifyResult{OK: false, Reason: "receipt payload is missing the signed approval requirement"}
 	}
@@ -911,6 +1001,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: reason}
 	}
 	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
+		return VerifyResult{OK: false, Reason: reason}
+	}
+	if ok, reason := checkRequirementFloor(*fields.Requirement, expected.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}
 	}
 	// DIV §5-step-3c. Before Local Payload Reconstruction: a non-null value would also fail the byte
@@ -925,7 +1018,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		if fields.ChallengedAt == "" {
 			return VerifyResult{OK: false, Reason: "offline proof is missing challengedAt"}
 		}
-		challenged, err := time.Parse(time.RFC3339, fields.ChallengedAt)
+		challenged, err := parseSignedTime(fields.ChallengedAt)
 		if err != nil {
 			return VerifyResult{OK: false, Reason: "challengedAt is not a valid RFC3339 timestamp"}
 		}
@@ -945,7 +1038,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		// This mirrors packages/verify/src/index.ts (the TS reference), where the same fix landed
 		// first. DIV.md declares expiresAt RFC3339 UTC, so refusing a non-conformant one is correct
 		// behaviour rather than a compatibility risk.
-		expiry, err := time.Parse(time.RFC3339, fields.ExpiresAt)
+		expiry, err := parseSignedTime(fields.ExpiresAt)
 		if err != nil {
 			return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}
 		}
@@ -968,8 +1061,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		// A hardware-key policy CANNOT be satisfied offline (DIV §5a.3 step 4). WebAuthn needs a secure
 		// context and an RP ID an offline signing surface will not match, so an offline witness is always
 		// a bare key. Accepting the proof anyway would silently downgrade the policy the approver
-		// attested to, so it is refused instead — fail closed, and say why.
-		if fields.Requirement.RequireHardwareKey {
+		// attested to, so it is refused instead — fail closed, and say why. A non-empty model allowlist
+		// is the same policy class: a bare key has no authenticator model at all.
+		if fields.Requirement.RequiresHardwareCredential() {
 			return VerifyResult{OK: false, Reason: "the signed policy requires a hardware-backed WebAuthn credential, which cannot be produced offline — this action cannot be approved out of band (DIV §5a.3)"}
 		}
 	}
@@ -980,7 +1074,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	delegatedQuorum := 0
 	if opts.Delegation != nil {
 		d := opts.Delegation
-		expiry, err := time.Parse(time.RFC3339, d.ExpiresAt)
+		expiry, err := parseSignedTime(d.ExpiresAt)
 		if err != nil {
 			return VerifyResult{OK: false, Reason: "delegation expiresAt is not a valid RFC3339 timestamp"}
 		}
@@ -1064,7 +1158,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 
 	// Expiration (DIV §5.8/§6.2). Fail-closed by default; opt out only for audit re-verification.
 	if !opts.AllowExpired {
-		expiry, err := time.Parse(time.RFC3339, fields.ExpiresAt)
+		expiry, err := parseSignedTime(fields.ExpiresAt)
 		if err != nil {
 			return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}
 		}
@@ -1112,6 +1206,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	// receipt outright rather than letting every witness fail individually — the caller's anchor is
 	// the wrong shape for the policy, which is not a quorum shortfall. All five ports decide it
 	// here, before the loop; TypeScript decided it mid-loop until this was reconciled.
+	if fields.Requirement.RequiredApprovals > 1 && len(expected.Approvers.PublicKeys) > 0 {
+		return VerifyResult{OK: false, Reason: "multi-approver quorum requires a DID-mode trust anchor (DIV §5 step 3b)"}
+	}
 	if fields.Requirement.RequesterCannotApprove && len(expected.Approvers.PublicKeys) > 0 {
 		return VerifyResult{OK: false, Reason: "requesterCannotApprove requires a DID-mode trust anchor; in PublicKeys mode signerDid is unverified and four-eyes cannot be enforced"}
 	}
@@ -1119,6 +1216,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	// Count DISTINCT approvers whose signature verifies under a key we independently trust. Distinct
 	// is load-bearing: without it, N copies of one approver's signature satisfy an N-of-M quorum.
 	verified := map[string]bool{}
+	countedKeys := map[string]string{}
 	var failures []string
 	for _, w := range witnesses {
 		cands, reason := candidateKeys(expected.Approvers, w, delegatedTo)
@@ -1126,11 +1224,11 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			failures = append(failures, reason)
 			continue
 		}
-		matched := ""
+		matched, matchedKey := "", ""
 		last := "signature does not verify against any trusted approver key"
 		for _, c := range cands {
 			if why := verifyWitness(w, c[0], receipt, opts); why == "" {
-				matched = c[1]
+				matched, matchedKey = c[1], c[0]
 				break
 			} else {
 				last = why
@@ -1143,15 +1241,25 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		// A hardware-key policy is only partially checkable offline: a bare P-256 key carries no
 		// attestation at all, so it can never satisfy the requirement, while a WebAuthn assertion is
 		// accepted without proving the authenticator's model.
-		if fields.Requirement.RequireHardwareKey && (w.SigAlg == nil || *w.SigAlg != "WEBAUTHN") {
+		if fields.Requirement.RequiresHardwareCredential() && (w.SigAlg == nil || *w.SigAlg != "WEBAUTHN") {
 			failures = append(failures, fmt.Sprintf(
 				"signer %s used a bare key, but the signed policy requires a hardware-backed WebAuthn credential", w.SignerDID))
 			continue
+		}
+		if fields.Requirement.RequireHardwareKey {
+			if why := backupFlagsProblem(w); why != "" {
+				failures = append(failures, why)
+				continue
+			}
 		}
 		// Four-eyes, verified offline against the requester in the same signed payload.
 		if fields.Requirement.RequesterCannotApprove && w.SignerDID == receipt.Requester.DID {
 			failures = append(failures, fmt.Sprintf(
 				"four-eyes: requester %s cannot approve their own action", w.SignerDID))
+			continue
+		}
+		if why := sharedKeyProblem(countedKeys, matchedKey, matched); why != "" {
+			failures = append(failures, why)
 			continue
 		}
 		verified[matched] = true
@@ -1192,6 +1300,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOptions) (VerifyResult, *VerifiedDelegation) {
 	if receipt.CanonicalPayload == "" {
 		return VerifyResult{OK: false, Reason: "missing canonicalPayload"}, nil
+	}
+	if why := canonicalTextProblem(receipt.CanonicalPayload); why != "" {
+		return VerifyResult{OK: false, Reason: why}, nil
 	}
 	var fields canonicalFields
 	if err := json.Unmarshal([]byte(receipt.CanonicalPayload), &fields); err != nil {
@@ -1236,11 +1347,11 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	if fields.ExpiresAt == "" {
 		return VerifyResult{OK: false, Reason: "delegation is missing expiresAt"}, nil
 	}
-	sealed, err := time.Parse(time.RFC3339, fields.SealedAt)
+	sealed, err := parseSignedTime(fields.SealedAt)
 	if err != nil {
 		return VerifyResult{OK: false, Reason: "sealedAt is not a valid RFC3339 timestamp"}, nil
 	}
-	expiry, err := time.Parse(time.RFC3339, fields.ExpiresAt)
+	expiry, err := parseSignedTime(fields.ExpiresAt)
 	if err != nil {
 		return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}, nil
 	}
@@ -1268,6 +1379,9 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		return VerifyResult{OK: false, Reason: reason}, nil
 	}
 	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
+		return VerifyResult{OK: false, Reason: reason}, nil
+	}
+	if ok, reason := checkRequirementFloor(*fields.Requirement, expected.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}, nil
 	}
 	if expected.Target == "" {
@@ -1317,6 +1431,7 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 			"delegation carries %d witnesses, above the %d this verifier will process", len(witnesses), MaxWitnesses)}, nil
 	}
 	verified := map[string]bool{}
+	countedKeys := map[string]string{}
 	var failures []string
 	for _, w := range witnesses {
 		cands, reason := candidateKeys(expected.Approvers, w, nil)
@@ -1324,11 +1439,11 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 			failures = append(failures, reason)
 			continue
 		}
-		matched := ""
+		matched, matchedKey := "", ""
 		last := "signature does not verify against any trusted approver key"
 		for _, c := range cands {
 			if why := verifyWitness(w, c[0], receipt, opts); why == "" {
-				matched = c[1]
+				matched, matchedKey = c[1], c[0]
 				break
 			} else {
 				last = why
@@ -1338,14 +1453,24 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 			failures = append(failures, last)
 			continue
 		}
-		if fields.Requirement.RequireHardwareKey && (w.SigAlg == nil || *w.SigAlg != "WEBAUTHN") {
+		if fields.Requirement.RequiresHardwareCredential() && (w.SigAlg == nil || *w.SigAlg != "WEBAUTHN") {
 			failures = append(failures, fmt.Sprintf(
 				"signer %s used a bare key, but the signed policy requires a hardware-backed WebAuthn credential", w.SignerDID))
 			continue
 		}
+		if fields.Requirement.RequireHardwareKey {
+			if why := backupFlagsProblem(w); why != "" {
+				failures = append(failures, why)
+				continue
+			}
+		}
 		if fields.Requirement.RequesterCannotApprove && w.SignerDID == receipt.Requester.DID {
 			failures = append(failures, fmt.Sprintf(
 				"four-eyes: requester %s cannot delegate to themselves", w.SignerDID))
+			continue
+		}
+		if why := sharedKeyProblem(countedKeys, matchedKey, matched); why != "" {
+			failures = append(failures, why)
 			continue
 		}
 		verified[matched] = true
@@ -1422,7 +1547,8 @@ func witnessesOf(receipt ApprovalReceipt) []ApprovalWitness {
 
 // verifyWitness verifies one witness using an already-TRUSTED key. Returns "" on success.
 func verifyWitness(w ApprovalWitness, trustedKey string, receipt ApprovalReceipt, opts VerifyOptions) string {
-	if w.SigAlg == nil || (*w.SigAlg != "ES256" && *w.SigAlg != "WEBAUTHN") {
+	// DIV §4.4.2: absent/unknown labels fall back to ES256, except AUTO_APPROVED.
+	if w.SigAlg != nil && *w.SigAlg == "AUTO_APPROVED" {
 		return "unsupported witness signature algorithm"
 	}
 	if w.SigAlg != nil && *w.SigAlg == "WEBAUTHN" {
