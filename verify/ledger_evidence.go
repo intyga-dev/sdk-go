@@ -80,6 +80,7 @@ type EvidenceRootVerification struct {
 }
 type EvidenceFailure struct{ Seq, Reason string }
 type EvidenceSignatures struct {
+	Checks       []AuditEntrySignature
 	Verified     int
 	Invalid      []struct{ Seq string }
 	NotCheckable int
@@ -93,7 +94,9 @@ type EvidenceVerification struct {
 	Notes                                  []string
 }
 type EvidenceVerifyOptions struct {
-	TrustedRoots []string
+	SignaturePolicy   *AuditSignaturePolicy
+	RequireSignatures bool
+	TrustedRoots      []string
 	// TrustedCheckpoints are checkpoint records YOU hold (chain-verified roots-file lines, DEWP §5.4.1).
 	// Their roots are trusted roots; a bundle checkpoint over one must agree with it on every field
 	// both state, and anchors are held to the record's range, chain hash and time (§5.3).
@@ -323,9 +326,11 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 				r.Failed = append(r.Failed, EvidenceFailure{seq, "entry belongs to another tenant"})
 				continue
 			}
-			if VerifyEmbeddedSignature(*e.Event.Canonical) {
+			signature := VerifyAuditSignature(*e.Event.Canonical, o.SignaturePolicy)
+			r.Signatures.Checks = append(r.Signatures.Checks, AuditEntrySignature{seq, signature})
+			if signature.Status == "verified" {
 				r.Signatures.Verified++
-			} else if e.Event.Canonical.SigAlg != nil && *e.Event.Canonical.SigAlg == "ES256" && e.Event.Canonical.Signature != nil && e.Event.Canonical.SignerPublicKey != nil {
+			} else if signature.Status == "invalid" {
 				r.Signatures.Invalid = append(r.Signatures.Invalid, struct{ Seq string }{seq})
 			} else {
 				r.Signatures.NotCheckable++
@@ -468,6 +473,21 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 			if x.AnchorVerified == nil || !*x.AnchorVerified {
 				all = false
 			}
+		}
+	}
+	bySeq := map[string]AuditSignatureCheck{}
+	for _, check := range r.Signatures.Checks {
+		bySeq[check.Seq] = check.AuditSignatureCheck
+	}
+	r.Signatures.Checks = nil
+	for _, entry := range b.Entries {
+		check, found := bySeq[entry.Event.Seq]
+		if !found {
+			check = uncheckedSignature()
+		}
+		r.Signatures.Checks = append(r.Signatures.Checks, AuditEntrySignature{entry.Event.Seq, check})
+		if o.RequireSignatures && (check.Status != "verified" || !check.Trusted) {
+			r.Failed = append(r.Failed, EvidenceFailure{entry.Event.Seq, "Required trusted signature: " + check.Reason})
 		}
 	}
 	r.OK = len(r.Failed) == 0 && len(b.Entries) > 0 && trustedGiven && all

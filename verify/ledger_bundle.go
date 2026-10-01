@@ -58,8 +58,9 @@ type VerificationProperties struct {
 }
 type BundleChecks struct{ Inclusion, RootConsistency, LeafBinding, HeaderBinding, Anchored CheckResult }
 type BundleVerification struct {
-	OK        bool    `json:"ok"`
-	DailyRoot *string `json:"dailyRoot"`
+	Signature AuditSignatureCheck `json:"signature"`
+	OK        bool                `json:"ok"`
+	DailyRoot *string             `json:"dailyRoot"`
 	// RootSource is "caller-supplied", "self-asserted" or "none". A supplied root is never labelled
 	// "independent": the verifier cannot tell one recorded independently from one copied out of the
 	// bundle itself.
@@ -72,11 +73,13 @@ type BundleVerification struct {
 	Notes             []string               `json:"notes"`
 }
 type BundleVerifyOptions struct {
-	TrustedRoot      string
-	Anchors          []SignedAnchor
-	AnchorPolicy     *AnchorPolicy
-	ResolveAnchorKey AnchorKeyResolver
-	ExternalKeys     ExternalAnchorKeys
+	SignaturePolicy   *AuditSignaturePolicy
+	RequireSignatures bool
+	TrustedRoot       string
+	Anchors           []SignedAnchor
+	AnchorPolicy      *AnchorPolicy
+	ResolveAnchorKey  AnchorKeyResolver
+	ExternalKeys      ExternalAnchorKeys
 	// TrustedCheckpoint is the caller's record of the proof's checkpoint (its roots-file line). A single
 	// proof carries no checkpoint, so without it no EXTERNAL anchor counts: the §5.3 time bound would be
 	// measured against the anchor's own producer-chosen timestamp. Its Root stands in for TrustedRoot
@@ -253,16 +256,20 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 			notes = append(notes, q.Note)
 		}
 	}
-	has := b.Event.Canonical != nil && b.Event.Canonical.Signature != nil && *b.Event.Canonical.Signature != "" && b.Event.Canonical.SignerPublicKey != nil && *b.Event.Canonical.SignerPublicKey != ""
-	sig := content && VerifyEmbeddedSignature(*b.Event.Canonical)
+	signature := uncheckedSignature()
+	if content {
+		signature = VerifyAuditSignature(*b.Event.Canonical, o.SignaturePolicy)
+	}
+	sig := signature.Status == "verified"
 	p := VerificationProperties{incl && cons, content, sig, anchorOK}
+	has := signature.Status != "not_applicable"
 	level := DeriveVerificationLevel(p, has)
 	if kindBad {
 		level = "INVALID"
 	}
 	ok := !kindBad && !conflict && source == "caller-supplied" && incl && cons && (b.Event.Canonical == nil || content) && (o.AnchorPolicy == nil || anchorOK)
 	return BundleVerification{
-		OK: ok, DailyRoot: rp, RootSource: source, WitnessTimes: witnessTimes, Properties: p, VerificationLevel: level,
+		OK: ok && (!o.RequireSignatures || (sig && signature.Trusted)), Signature: signature, DailyRoot: rp, RootSource: source, WitnessTimes: witnessTimes, Properties: p, VerificationLevel: level,
 		Checks: BundleChecks{ci, cr, leaf, header, check(nil, "producer claim only")}, Notes: notes,
 	}
 }
