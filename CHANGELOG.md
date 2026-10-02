@@ -5,6 +5,8 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 
 ## [Unreleased]
 
+## [1.0.0]
+
 - **Breaking (I11):** `NewClient` now returns `(*Client, error)` and refuses a `GatewayURL` that is
   not `https://`, except `http://` to a loopback host (`localhost`, `127.0.0.0/8`, `::1`) for local
   development, so a misconfiguration fails before any credential is sent.
@@ -31,7 +33,6 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 - The token cache is now guarded by a mutex, so `Client` is safe for concurrent use and concurrent
   callers on a cold cache share one exchange (previously an acknowledged benign race).
 
-## [1.0.0]
 
 Initial public release.
 
