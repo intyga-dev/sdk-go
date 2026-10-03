@@ -5,6 +5,11 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 
 ## [Unreleased]
 
+## [1.1.0]
+
+- No code change. The matched set moves together (`pnpm test:versions`); this release carries the
+  new `@intyga/sdk` CLI options and the `require-approval` Action update.
+
 ## [1.0.0]
 
 - **Breaking (I11):** `NewClient` now returns `(*Client, error)` and refuses a `GatewayURL` that is
