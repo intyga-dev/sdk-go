@@ -38,6 +38,14 @@ const (
 	StatusDenied   ApprovalStatus = "DENIED"
 	StatusExpired  ApprovalStatus = "EXPIRED"
 	StatusPending  ApprovalStatus = "PENDING"
+	// StatusOfflineApproved means an OFFLINE APPROVAL authorized this — real human signatures,
+	// collected out of band at incident time because the gateway could not be reached (DIV §5a).
+	//
+	// Deliberately NOT StatusApproved. The usual caller guard is `if r.Status != StatusApproved`, so a
+	// distinct status means adding offline approval to an existing service cannot silently start
+	// permitting things: handling it has to be a conscious change at the call site. Only
+	// RequireApproval with RequireApprovalOptions.Offline set ever returns it.
+	StatusOfflineApproved ApprovalStatus = "OFFLINE_APPROVED"
 )
 
 // ClientOptions configures a Client.
@@ -224,15 +232,20 @@ func (c *Client) Token(ctx context.Context) (string, error) {
 	req.SetBasicAuth(c.opts.ClientID, c.opts.ClientSecret)
 	res, err := c.http.Do(req)
 	if err != nil {
-		return "", err
+		return "", &GatewayUnreachableError{Err: err}
 	}
 	defer res.Body.Close()
+	// A body that cannot be read came from a gateway that did answer: a plain error, never
+	// GatewayUnreachableError, so it is not routed offline (the reference decides it the same way).
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", err
 	}
+	// A refused exchange is a verdict from a reachable gateway, like any other non-2xx answer — a
+	// revoked key must never read as an outage that RequireApproval may answer offline.
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return "", fmt.Errorf("token exchange failed: %d %s", res.StatusCode, string(body))
+		return "", &GatewayRefusedError{StatusCode: res.StatusCode, Body: string(body),
+			message: fmt.Sprintf("token exchange failed: %d %s", res.StatusCode, string(body))}
 	}
 	var data struct {
 		AccessToken string `json:"access_token"`
@@ -342,6 +355,20 @@ type RequireApprovalOptions struct {
 	Timeout time.Duration
 	// Interval is the poll interval. Defaults to 2s.
 	Interval time.Duration
+	// Offline opts in to the OFFLINE APPROVAL fallback (DIV §5a) for THIS call. Nil means no
+	// fallback, ever — and there is deliberately no client-wide default: set it only at the specific
+	// call sites permitted to run under an offline approval, or every gated action in the service
+	// would accept an out-of-band approval, which is the difference between an emergency mechanism
+	// and a hole.
+	//
+	// The fallback runs only when the gateway could not be ASKED: a connection failure or timeout
+	// (GatewayUnreachableError) or a 5xx raising the challenge, or maxPollErrors consecutive polling
+	// failures of those kinds. A 4xx (or any other non-2xx below 500), DENIED or EXPIRED is a human or
+	// the gateway having answered, and is returned as is — a polling streak containing one returns
+	// it. A local error (blank Target, missing credentials, an unreadable body) never falls back, and
+	// neither does a request carrying AgentContext. A completed fallback returns
+	// StatusOfflineApproved, never StatusApproved. See UseOfflineApproval.
+	Offline *OfflineApprovalOptions
 }
 
 // maxPollErrors is how many back-to-back polling failures before RequireApproval declares the gateway unreachable.
@@ -349,6 +376,10 @@ const maxPollErrors = 5
 
 // RequireApproval is the core zero-trust gate: call it immediately before a high-risk action. It creates
 // the challenge and blocks until the human approves/denies with their passkey (or it times out or ctx is done).
+//
+// With opts.Offline set, a gateway that cannot be asked is answered by an offline approval instead
+// (DIV §5a), reported as StatusOfflineApproved; see RequireApprovalOptions.Offline. A non-2xx answer
+// from the gateway is returned as a *GatewayRefusedError.
 func (c *Client) RequireApproval(ctx context.Context, actionDescription string, opts RequireApprovalOptions) (ApprovalResult, error) {
 	timeout := opts.Timeout
 	if timeout <= 0 {
@@ -368,7 +399,13 @@ func (c *Client) RequireApproval(ctx context.Context, actionDescription string, 
 	deadline := time.Now().Add(timeout)
 	authRes, err := c.Authorize(ctx, actionDescription, authOpts)
 	if err != nil {
-		return ApprovalResult{}, err
+		// Could not even raise the challenge — the clearest "gateway is unreachable" signal there is,
+		// unless the gateway in fact answered (a refusal), the caller gave up (ctx), or the failure is
+		// local (a missing Target or credentials): none of those is routed offline.
+		if opts.Offline == nil || ctx.Err() != nil || !couldNotAsk(err) {
+			return ApprovalResult{}, err
+		}
+		return c.offlineFallback(ctx, fmt.Sprintf("could not reach Intyga to request approval: %v", err), err, actionDescription, opts)
 	}
 	nonce := authRes.Nonce
 
@@ -376,6 +413,11 @@ func (c *Client) RequireApproval(ctx context.Context, actionDescription string, 
 		return ApprovalResult{Status: StatusExpired, Nonce: nonce, AgentContext: authRes.AgentContext}
 	}
 	consecutiveErrors := 0
+	// streakRefusal is the first error in the current streak of failures that was NOT "could not ask"
+	// (a 4xx refusal, a local error). If the streak reaches maxPollErrors it is returned and nothing
+	// routes offline, whatever the later errors were: a gateway that answered 404 once and then went
+	// quiet was reached, and its answer was not an outage. A successful poll resets the streak.
+	var streakRefusal error
 	for {
 		if !time.Now().Before(deadline) {
 			return expired(), nil
@@ -390,12 +432,27 @@ func (c *Client) RequireApproval(ctx context.Context, actionDescription string, 
 			return expired(), nil
 		}
 		if err != nil {
+			if streakRefusal == nil && !couldNotAsk(err) {
+				streakRefusal = err
+			}
 			consecutiveErrors++
 			if consecutiveErrors >= maxPollErrors {
-				return ApprovalResult{}, fmt.Errorf("polling failed after %d consecutive errors: %w", maxPollErrors, err)
+				if streakRefusal != nil {
+					return ApprovalResult{}, streakRefusal
+				}
+				pollErr := fmt.Errorf("polling failed after %d consecutive errors: %w", maxPollErrors, err)
+				// The gateway went away mid-wait: the same situation as failing to raise the challenge,
+				// so the same fallback applies — and, as there, only because we could not ASK. Without
+				// the opt-in the typed error (GatewayUnreachableError or a 5xx GatewayRefusedError) is
+				// wrapped in pollErr.
+				if opts.Offline == nil {
+					return ApprovalResult{}, pollErr
+				}
+				return c.offlineFallback(ctx, pollErr.Error(), pollErr, actionDescription, opts)
 			}
 		} else {
 			consecutiveErrors = 0
+			streakRefusal = nil
 			if r.Status != StatusPending {
 				r.Nonce = nonce
 				r.AgentContext = authRes.AgentContext
@@ -463,7 +520,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body interface
 		}
 		res, err := c.http.Do(req)
 		if err != nil {
-			return err
+			return &GatewayUnreachableError{Err: err}
 		}
 		respBody, readErr := io.ReadAll(res.Body)
 		res.Body.Close()
@@ -476,7 +533,8 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body interface
 			continue
 		}
 		if res.StatusCode < 200 || res.StatusCode >= 300 {
-			return fmt.Errorf("%s %s failed: %d %s", method, path, res.StatusCode, string(respBody))
+			return &GatewayRefusedError{StatusCode: res.StatusCode, Body: string(respBody),
+				message: fmt.Sprintf("%s %s failed: %d %s", method, path, res.StatusCode, string(respBody))}
 		}
 		if out == nil {
 			return nil

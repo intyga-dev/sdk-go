@@ -1,0 +1,2399 @@
+{
+  "note": "Synthetic audit assertions from webauthn-vector.json. Roots recomputed after mutations to test signature checks independently of leaf binding. No change to the DEWP preimage or DIV signed payload format.",
+  "cases": [
+    {
+      "name": "valid",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "verified",
+      "trusted": true,
+      "strictOk": true
+    },
+    {
+      "name": "key-rotation",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "AAAA",
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "verified",
+      "trusted": true,
+      "strictOk": true
+    },
+    {
+      "name": "no-trust",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": null,
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "unknown-signer",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:unknown",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:unknown",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "aebb0a4939382250999eda74546ad627f3d884b2a41b4b0be30ae853c3543746",
+          "blockIndex": "0",
+          "blockRoot": "aebb0a4939382250999eda74546ad627f3d884b2a41b4b0be30ae853c3543746",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "7669acaaf0015fd4fd5a9b23c392e26b5c1ab87e970d0d302a22aabb0244bd04",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "7669acaaf0015fd4fd5a9b23c392e26b5c1ab87e970d0d302a22aabb0244bd04",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "wrong-key",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "AAAA"
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "missing-origin",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "missing-rp",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": ""
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "wrong-origin",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://evil.example",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "wrong-rp",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "evil.example"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "missing-webauthn",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {},
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "4773e0ee2dcf0a5f761aba01c9e37eb5c47a40ad4a2770cbc38157eb0713b04c",
+          "blockIndex": "0",
+          "blockRoot": "4773e0ee2dcf0a5f761aba01c9e37eb5c47a40ad4a2770cbc38157eb0713b04c",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "8b05238296f05f3b5d034f3939bd2e66b6b4417ca172fce4bb3ae7c54fd9c6f9",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "8b05238296f05f3b5d034f3939bd2e66b6b4417ca172fce4bb3ae7c54fd9c6f9",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "missing-signature",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": null,
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": null,
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "c542ffc2651dbbc59b1abde58748f6175a732980f04a5218d34ea91729e45bc8",
+          "blockIndex": "0",
+          "blockRoot": "c542ffc2651dbbc59b1abde58748f6175a732980f04a5218d34ea91729e45bc8",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "0aa53c5d2369cd6d7bd43e1c2965143b1abf1a157ecc65568f8b962816f85793",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "0aa53c5d2369cd6d7bd43e1c2965143b1abf1a157ecc65568f8b962816f85793",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "tampered-signature",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "AAAA",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "AAAA",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "b0bbfd86e14515a0873f05462a40a7b6baf03d3936999f230cebe6d214d22420",
+          "blockIndex": "0",
+          "blockRoot": "b0bbfd86e14515a0873f05462a40a7b6baf03d3936999f230cebe6d214d22420",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "d2a948cab3d0d3b07c601923eb10af51623958203a123051e9b182f243514e71",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "d2a948cab3d0d3b07c601923eb10af51623958203a123051e9b182f243514e71",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "tampered-payload",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1} ",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "d7abfeee5c8c0318a79b5a626f1f974ccf0e9a9c32c5ec7ca9f0a09c7b74081b",
+          "blockIndex": "0",
+          "blockRoot": "d7abfeee5c8c0318a79b5a626f1f974ccf0e9a9c32c5ec7ca9f0a09c7b74081b",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "db26c87352f6cd18e1b34cee433c2f22d0180cffa25600f9f5e0bc7dd8ac9e1f",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "db26c87352f6cd18e1b34cee433c2f22d0180cffa25600f9f5e0bc7dd8ac9e1f",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "ignored-embedded-key",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "AAAA",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "5e4c8639caa3d221194ea3b026916ae192eb6efc0f9af1be71ec8b33bb51edb1",
+          "blockIndex": "0",
+          "blockRoot": "5e4c8639caa3d221194ea3b026916ae192eb6efc0f9af1be71ec8b33bb51edb1",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "522a81c01d9f3528e773ebb56d55fff8a92ba48d8b2a91383a6a0a66522a3e92",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "522a81c01d9f3528e773ebb56d55fff8a92ba48d8b2a91383a6a0a66522a3e92",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "verified",
+      "trusted": true,
+      "strictOk": true
+    },
+    {
+      "name": "unsupported-algorithm",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "UNKNOWN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "UNKNOWN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "338393b193f3400f47891b2a4fdfcd5dce417865e922208392b1cf28005068a2",
+          "blockIndex": "0",
+          "blockRoot": "338393b193f3400f47891b2a4fdfcd5dce417865e922208392b1cf28005068a2",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "c600ab3fe09ece48fca85cb7bc369d1a9489ab1a34f4f2671172a5f925ac8fc9",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "c600ab3fe09ece48fca85cb7bc369d1a9489ab1a34f4f2671172a5f925ac8fc9",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "auto-approved",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": null,
+          "sigAlg": "AUTO_APPROVED",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": null,
+            "sigAlg": "AUTO_APPROVED",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "8a9074bec3cf19f26eb05dafe2b678a1c60d35cacd9ebe71600619f00aebb20e",
+          "blockIndex": "0",
+          "blockRoot": "8a9074bec3cf19f26eb05dafe2b678a1c60d35cacd9ebe71600619f00aebb20e",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "baef810f2eb226c5bc1be9336f5576cefed4977726203971b65886ceae973356",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "baef810f2eb226c5bc1be9336f5576cefed4977726203971b65886ceae973356",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_applicable",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "unsigned",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": null,
+          "sigAlg": null,
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": null,
+            "signedPayload": null,
+            "signature": null,
+            "sigAlg": null,
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "093cbc5630f0a07a7b5b4057b01e6086ba1870e1ad1b4317acc09b458b4f7cad",
+          "blockIndex": "0",
+          "blockRoot": "093cbc5630f0a07a7b5b4057b01e6086ba1870e1ad1b4317acc09b458b4f7cad",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "4f13168b730a9ed649aa38a41ad28718ee556dcc69ef9d75201733ab5895fefc",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "4f13168b730a9ed649aa38a41ad28718ee556dcc69ef9d75201733ab5895fefc",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_applicable",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "missing-alg-with-signature",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": null,
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": null,
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "44993be55c35bc291fda592fbbfee7466aa984559bb12729d6575cbc13c06e5a",
+          "blockIndex": "0",
+          "blockRoot": "44993be55c35bc291fda592fbbfee7466aa984559bb12729d6575cbc13c06e5a",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "eda0629c850827f815cb8363a94e4533ab40d4c7110565cb4f6a7e038a7e5731",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "eda0629c850827f815cb8363a94e4533ab40d4c7110565cb4f6a7e038a7e5731",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "cross-origin",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEUCIGCuzs9/Ig87CUZt40IyMhU2bklrSPJxVwPZ1/aaro5JAiEAxB20NSQeUvoYWhvrbWK157nSLYyAQ8J9pf7VQnns86I=",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20iLCJjcm9zc09yaWdpbiI6dHJ1ZX0="
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEUCIGCuzs9/Ig87CUZt40IyMhU2bklrSPJxVwPZ1/aaro5JAiEAxB20NSQeUvoYWhvrbWK157nSLYyAQ8J9pf7VQnns86I=",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "e2d8acc43a8c5e780351ec26c72322912276b17a43847c873646173902edc09b",
+          "blockIndex": "0",
+          "blockRoot": "e2d8acc43a8c5e780351ec26c72322912276b17a43847c873646173902edc09b",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "0b9f49b6938a08f36614397f08e1527af2ef96e9570dfb892bd7f4984ee81241",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "0b9f49b6938a08f36614397f08e1527af2ef96e9570dfb892bd7f4984ee81241",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "wrong-top-origin",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEUCIQCGRcQ7WJUehHGe1opvnx/C/GL66mdkFOaS9ZCnPzlikwIgcu2TTmejXFxv4yR9ZPnRKxLugCHVumY78JzZbQLy20Q=",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20iLCJ0b3BPcmlnaW4iOiJodHRwczovL2V2aWwuZXhhbXBsZSJ9"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEUCIQCGRcQ7WJUehHGe1opvnx/C/GL66mdkFOaS9ZCnPzlikwIgcu2TTmejXFxv4yR9ZPnRKxLugCHVumY78JzZbQLy20Q=",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "e881f0b5e8bff781803d4ed2670e195634720cfdc4c21c73b2f6b3ad842233a0",
+          "blockIndex": "0",
+          "blockRoot": "e881f0b5e8bff781803d4ed2670e195634720cfdc4c21c73b2f6b3ad842233a0",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "8304ae5b08e4a49221647a2f4851c55d9f8467a0644a918b2a396e186a71ab2b",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "8304ae5b08e4a49221647a2f4851c55d9f8467a0644a918b2a396e186a71ab2b",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "wrong-ceremony",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEUCIQCV+tN3crqo7/F/ylzU9ECekeEisKg9Xr357hgx3fbdFQIgUlPMTCja3W89qP/HlkvGkgfM1MthXNAaI/TgZIx7tvQ=",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ=="
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEUCIQCV+tN3crqo7/F/ylzU9ECekeEisKg9Xr357hgx3fbdFQIgUlPMTCja3W89qP/HlkvGkgfM1MthXNAaI/TgZIx7tvQ=",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "d535c4162bcd36c9fce922c9b16e2833fbb5db9708b087ab9f28722f05081272",
+          "blockIndex": "0",
+          "blockRoot": "d535c4162bcd36c9fce922c9b16e2833fbb5db9708b087ab9f28722f05081272",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "c1883719ec2843bec72154d58b3c799b6b717b4971e76b6ae2c851465f5e1779",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "c1883719ec2843bec72154d58b3c799b6b717b4971e76b6ae2c851465f5e1779",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "missing-up",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEUCIQDhOMQ4s4gBdDBER+3dRpZnf+IoHzZroZRvSFCZs5iPfwIgFVbV8/N7sDaOBnkoqVTTr7/dOP+XdPABiApBrNbDuuo=",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQEAAAABA==",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEUCIQDhOMQ4s4gBdDBER+3dRpZnf+IoHzZroZRvSFCZs5iPfwIgFVbV8/N7sDaOBnkoqVTTr7/dOP+XdPABiApBrNbDuuo=",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "878fc11aff3ba44f1aa4acfb8e0a82f95e5764d86f3f60dc289f0beeac5ab364",
+          "blockIndex": "0",
+          "blockRoot": "878fc11aff3ba44f1aa4acfb8e0a82f95e5764d86f3f60dc289f0beeac5ab364",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "7a6fb3301c15678e273bb0b70fa4caf7a43e15b6baa09dcd7ea80fff598880ce",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "7a6fb3301c15678e273bb0b70fa4caf7a43e15b6baa09dcd7ea80fff598880ce",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "missing-uv",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEUCIQCFqVvG6pCIdimtmCKcpAYnp9IOh0bDfgPDuIcoRRtTcAIgCnUPU7f9a9TBaSoskqxVUJ/PExBIWas6cjbfm98fvic=",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQBAAAABA==",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEUCIQCFqVvG6pCIdimtmCKcpAYnp9IOh0bDfgPDuIcoRRtTcAIgCnUPU7f9a9TBaSoskqxVUJ/PExBIWas6cjbfm98fvic=",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "e898d1166e81974884c0b176086dadc5320d776c624637a296a7beea109a04db",
+          "blockIndex": "0",
+          "blockRoot": "e898d1166e81974884c0b176086dadc5320d776c624637a296a7beea109a04db",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "919d5ceba4cc0165db862574938a3a987b04e45fbdb53df29cabd5febec19e3b",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "919d5ceba4cc0165db862574938a3a987b04e45fbdb53df29cabd5febec19e3b",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "webauthn-spki-refused",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEQCIBoG0kPSGiIMBmzL+YI+saxVRA39unkx0L/7p6eZmiROAiBoxlnj8YBo7qb7Hceqqi9KZce7CclUr8cO5O5n2rFn7A==",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEQCIBoG0kPSGiIMBmzL+YI+saxVRA39unkx0L/7p6eZmiROAiBoxlnj8YBo7qb7Hceqqi9KZce7CclUr8cO5O5n2rFn7A==",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "3f6a37dcf2e363ee40eb8ff6abeccf20f6408811547f7c0bb6315584c52fe5d9",
+          "blockIndex": "0",
+          "blockRoot": "3f6a37dcf2e363ee40eb8ff6abeccf20f6408811547f7c0bb6315584c52fe5d9",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "26f9ea4e0aa2506e07def27aa5cb826e52ab5287a260c4e9dc297851aac15327",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "26f9ea4e0aa2506e07def27aa5cb826e52ab5287a260c4e9dc297851aac15327",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaxfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9Q=="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "es256-trusted",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEUCIQCXtVzyd9YjvrMr9uFtwyVw0pchZReTGGz24Mr6LvAxuAIgGQghrJ6rs6X4+fIlIZk4ytJnS/WUEAUhIh1yCBF1ghA=",
+          "sigAlg": "ES256",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaxfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9Q==",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEUCIQCXtVzyd9YjvrMr9uFtwyVw0pchZReTGGz24Mr6LvAxuAIgGQghrJ6rs6X4+fIlIZk4ytJnS/WUEAUhIh1yCBF1ghA=",
+            "sigAlg": "ES256",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "7031cd02c9249e3ebdd646f8043f6ecd4a619fe38492a0d612cb8e026c24af5f",
+          "blockIndex": "0",
+          "blockRoot": "7031cd02c9249e3ebdd646f8043f6ecd4a619fe38492a0d612cb8e026c24af5f",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "3506838424bada55a59d6ccb380149445c51e8226769a8e268ade992f959c1ce",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "3506838424bada55a59d6ccb380149445c51e8226769a8e268ade992f959c1ce",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaxfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9Q=="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "verified",
+      "trusted": true,
+      "strictOk": true
+    },
+    {
+      "name": "es256-embedded-only",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQDvUSKCZwxHsAHioNqFi98Mr7fq3Rsgbyb7KfCdaqHgdQIhAMtEUP3yastdrxeb52oL7nwPdZbrMp12WlFhqriZ+bK2",
+          "sigAlg": "ES256",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaxfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9Q==",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQDvUSKCZwxHsAHioNqFi98Mr7fq3Rsgbyb7KfCdaqHgdQIhAMtEUP3yastdrxeb52oL7nwPdZbrMp12WlFhqriZ+bK2",
+            "sigAlg": "ES256",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "ac65ed422f032704207d920d2940083f95fe5464930bddb395195466868075a2",
+          "blockIndex": "0",
+          "blockRoot": "ac65ed422f032704207d920d2940083f95fe5464930bddb395195466868075a2",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "9b4721543cd106f80f15257cafbaef3c882b7035fab16137cb161931d1f2e01d",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "9b4721543cd106f80f15257cafbaef3c882b7035fab16137cb161931d1f2e01d",
+      "policy": null,
+      "status": "verified",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "es256-invalid",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "AAAA",
+          "sigAlg": "ES256",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaxfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9Q==",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "AAAA",
+            "sigAlg": "ES256",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "8f54302c1596891e13e1722060e8204ab1b46fbfde39458a7c5f1c3433ee2960",
+          "blockIndex": "0",
+          "blockRoot": "8f54302c1596891e13e1722060e8204ab1b46fbfde39458a7c5f1c3433ee2960",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "b03115e0970587d6d848a7dd24a677327cdf42c73fbaac99d9f720d52becdb89",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "b03115e0970587d6d848a7dd24a677327cdf42c73fbaac99d9f720d52becdb89",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaxfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9Q=="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "es256-invalid-embedded",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "AAAA",
+          "sigAlg": "ES256",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaxfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9Q==",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "AAAA",
+            "sigAlg": "ES256",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "8f54302c1596891e13e1722060e8204ab1b46fbfde39458a7c5f1c3433ee2960",
+          "blockIndex": "0",
+          "blockRoot": "8f54302c1596891e13e1722060e8204ab1b46fbfde39458a7c5f1c3433ee2960",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "b03115e0970587d6d848a7dd24a677327cdf42c73fbaac99d9f720d52becdb89",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "b03115e0970587d6d848a7dd24a677327cdf42c73fbaac99d9f720d52becdb89",
+      "policy": null,
+      "status": "invalid",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "es256-missing-key",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQDglMdbFzIwInls329pzEY7Y3Xs2GN2DtqRLeTQi/fGIwIhAJ7ja55K9Agb1jLlAD2S/zLHsBHW9d3uG3FpNbg2YmGq",
+          "sigAlg": "ES256",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": null,
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQDglMdbFzIwInls329pzEY7Y3Xs2GN2DtqRLeTQi/fGIwIhAJ7ja55K9Agb1jLlAD2S/zLHsBHW9d3uG3FpNbg2YmGq",
+            "sigAlg": "ES256",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "f379e726ea65d1953841dd427128d1bca9ca9689873d39d40fa038e344f0fda1",
+          "blockIndex": "0",
+          "blockRoot": "f379e726ea65d1953841dd427128d1bca9ca9689873d39d40fa038e344f0fda1",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "ddd803aecb052175641dec7dba3fbd312a21d6f8566746985aebe509408214b0",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "ddd803aecb052175641dec7dba3fbd312a21d6f8566746985aebe509408214b0",
+      "policy": null,
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "empty-trust",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockIndex": "0",
+          "blockRoot": "41974a4aa4f036889e494865d04b3e5525839b4f2282952f172e6f33e8f911a6",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "658c3683887f8f48f7d5df3677167450bf89060f0765be4438e4999a6a5bdbe5",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": []
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "missing-payload",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": {
+              "webauthn": {
+                "authenticatorData": "KAWYKbEFHwTvAxGQZ8DOCeBSd2EokPjgh08djs4a4DQFAAAABA",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKaFkzUnBiMjVVZVhCbElqb2ljR0Y1YldWdWRITXVkMmx5WlNJc0ltUnBjM0JzWVhraU9pSlhhWEpsSUNRMExESXdNQ0IwYnlCY0lrRkRUVVV0ZDJWaVhDSWc0b0NVSUdGd2NISnZkbVZrSUhacFlTQndZWE56YTJWNUlpd2laWFpwWkdWdVkyVWlPbTUxYkd3c0ltVjRjR2x5WlhOQmRDSTZJakk1T1RrdE1ERXRNREZVTURBNk1EQTZNREF1TURBd1dpSXNJbTV2Ym1ObElqb2lkMkZmTVRFeE1URXhNVEV0TWpJeU1pMDBNREF3TFRnd01EQXRZV0pqWkdWbVlXSmpaR1ZtSWl3aWNHRnlZVzF6SWpwN0ltRnRiM1Z1ZENJNk5ESXdNQ3dpYldWMFlTSTZleUp2YXlJNmRISjFaU3dpZEdGbmN5STZXeUoxY21kbGJuUWlYWDBzSW5abGJtUnZjaUk2SWtGRFRVVXRkMlZpSW4wc0luSmxjWFZsYzNSbGNpSTZleUpoZEhSbGMzUmhkR2x2YmlJNmJuVnNiQ3dpWkdsa0lqb2laR2xrT21sdWRIbG5ZVHBoWjJWdWRDMTNaV0lpZlN3aWNtVnhkV2x5WlcxbGJuUWlPbnNpWVd4c2IzZGxaRUZoWjNWcFpITWlPbHRkTENKeVpYRjFaWE4wWlhKRFlXNXViM1JCY0hCeWIzWmxJanBtWVd4elpTd2ljbVZ4ZFdseVpVaGhjbVIzWVhKbFMyVjVJanAwY25WbExDSnlaWEYxYVhKbFpFRndjSEp2ZG1Gc2N5STZNU3dpYzJsbmJtVnlRMnhoYzNNaU9pSm9kVzFoYmlKOUxDSjBZWEpuWlhRaU9pSndjbTlrTFhCaGVXMWxiblJ6TFhkbFlpSXNJblI1Y0dVaU9pSmthWFl0YVc1MFpXNTBMWFpsY21sbWFXTmhkR2x2YmlJc0luWWlPakY5Iiwib3JpZ2luIjoiaHR0cHM6Ly9hcHAuZXhhbXBsZS5jb20ifQ"
+              }
+            },
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": null,
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "732ccace26c8d27c3b0af2838cfd72922fa0030b6d0055bb0d56c486aece6103",
+          "blockIndex": "0",
+          "blockRoot": "732ccace26c8d27c3b0af2838cfd72922fa0030b6d0055bb0d56c486aece6103",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "789b5f2570085cc0ee25bd8fe60a912539f8ff4ac4c8eea85eb450e64fb2558f",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "789b5f2570085cc0ee25bd8fe60a912539f8ff4ac4c8eea85eb450e64fb2558f",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "metadata-null",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": null,
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "00040cdc16151942e78a1d80c742cfff7552a5decc8b4c4baba8f6960ea0661a",
+          "blockIndex": "0",
+          "blockRoot": "00040cdc16151942e78a1d80c742cfff7552a5decc8b4c4baba8f6960ea0661a",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "e57eaa6f6531bf57e78c2f1416980bfa9a8a6cbeba083d17b29830ed7b2a3c88",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "e57eaa6f6531bf57e78c2f1416980bfa9a8a6cbeba083d17b29830ed7b2a3c88",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    },
+    {
+      "name": "metadata-wrong-type",
+      "bundle": {
+        "kind": "dewp.audit.inclusion-proof",
+        "version": "1.0",
+        "protocol": "DEWP",
+        "profile": "trust.intyga.audit.v1",
+        "exportedAt": "2026-09-30T00:00:00.000Z",
+        "event": {
+          "seq": "1",
+          "createdAt": "2026-09-30T00:00:00.000Z",
+          "type": "AUTHZ_APPROVED",
+          "outcome": "SUCCESS",
+          "detail": null,
+          "signerDid": "did:intyga:user:passkey-holder",
+          "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+          "sigAlg": "WEBAUTHN",
+          "canonical": {
+            "seq": "1",
+            "tenantSeq": "1",
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "event": "AUTHZ_APPROVED",
+            "outcome": "SUCCESS",
+            "detail": null,
+            "metadata": "invalid",
+            "signerDid": "did:intyga:user:passkey-holder",
+            "signerPublicKey": "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY=",
+            "signedPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire $4,200 to \\\"ACME-web\\\" — approved via passkey\",\"evidence\":null,\"expiresAt\":\"2999-01-01T00:00:00.000Z\",\"nonce\":\"wa_11111111-2222-4000-8000-abcdefabcdef\",\"params\":{\"amount\":4200,\"meta\":{\"ok\":true,\"tags\":[\"urgent\"]},\"vendor\":\"ACME-web\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent-web\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":true,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments-web\",\"type\":\"div-intent-verification\",\"v\":1}",
+            "signature": "MEYCIQD5rW72nckazrtcHexDkVa1ekf_woRFL9e_CDoN_HeXSgIhAPhy8AEn_0zsEEgj9zsPT0gKSxiiTaRcS4MzeyU_z0yY",
+            "sigAlg": "WEBAUTHN",
+            "isBillable": false,
+            "tenantId": "test-tenant",
+            "actorNodeId": null,
+            "subjectNodeId": null,
+            "edgeId": null,
+            "challengeId": null
+          }
+        },
+        "proof": {
+          "seq": "1",
+          "leaf": "5b30aabfa84873a9d23514fc6a5659abfdb7a8fb24032c1327290638f846ab1d",
+          "blockIndex": "0",
+          "blockRoot": "5b30aabfa84873a9d23514fc6a5659abfdb7a8fb24032c1327290638f846ab1d",
+          "blockProof": [],
+          "leafIndex": 0,
+          "blockLeafCount": 1,
+          "checkpointId": "cp",
+          "checkpointRoot": "379dfa27f798f8e08621cfb89fc9130bbcc5015d316c3008c914ebafecd4a9fb",
+          "checkpointProof": [],
+          "checkpointLeafIndex": 0,
+          "checkpointLeafCount": 1,
+          "anchorRef": null,
+          "anchored": false
+        }
+      },
+      "root": "379dfa27f798f8e08621cfb89fc9130bbcc5015d316c3008c914ebafecd4a9fb",
+      "policy": {
+        "trustedSigners": {
+          "did:intyga:user:passkey-holder": [
+            "pQECAyYgASFYIGQDKQtf0Pd/2vIyqUSmI9+p1AK8eeXMENciGGfoQSiYIlggKNCU2JqkXIbehZOcb0wbSS0xNkhZAIStYK4BZrvV8oY="
+          ]
+        },
+        "expectedOrigin": "https://app.example.com",
+        "expectedRpId": "app.example.com"
+      },
+      "status": "not_checked",
+      "trusted": false,
+      "strictOk": false
+    }
+  ]
+}

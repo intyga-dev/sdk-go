@@ -1,0 +1,463 @@
+{
+  "generated": "2026-09-26T15:50:20.911Z",
+  "note": "Cross-language DEWP ledger vectors (docs/DEWP.md). Consumed by ALL FIVE ledger verifiers: TS (@intyga/verify), Go, Rust, Java, and Python. Regenerate ONLY on a deliberate format change.",
+  "domainTags": {
+    "leaf": "0x00",
+    "node": "0x01",
+    "empty": "0x02",
+    "anchor": "0x03",
+    "chain": "0x04"
+  },
+  "hashLeaf": [
+    {
+      "input": "A",
+      "expected": "c00b4d3c929cb5cc316691ed4636f634576f2c9b2954767234c5274e9dde185d"
+    },
+    {
+      "input": "hello world",
+      "expected": "4eccf34608d31bac5c7becf6006df59005d828181056d092084e341e6bb005bd"
+    }
+  ],
+  "hashPair": [
+    {
+      "left": "c00b4d3c929cb5cc316691ed4636f634576f2c9b2954767234c5274e9dde185d",
+      "right": "87afe6086fe4571e37657e76281301f189c75ebae1d2eaafb56d578067a1d95e",
+      "expected": "ed692f01f7f6c46930d7ad8f9adad3f9f38b7379cf6a8d2f399a0ba1e914fe25"
+    }
+  ],
+  "sha256Hex": [
+    {
+      "input": "abc",
+      "expected": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    }
+  ],
+  "emptyRoot": "dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986",
+  "merkleRoots": [
+    {
+      "name": "empty",
+      "leaves": [],
+      "expected": "dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986"
+    },
+    {
+      "name": "single",
+      "leaves": [
+        "c00b4d3c929cb5cc316691ed4636f634576f2c9b2954767234c5274e9dde185d"
+      ],
+      "expected": "c00b4d3c929cb5cc316691ed4636f634576f2c9b2954767234c5274e9dde185d"
+    },
+    {
+      "name": "pair",
+      "leaves": [
+        "c00b4d3c929cb5cc316691ed4636f634576f2c9b2954767234c5274e9dde185d",
+        "87afe6086fe4571e37657e76281301f189c75ebae1d2eaafb56d578067a1d95e"
+      ],
+      "expected": "ed692f01f7f6c46930d7ad8f9adad3f9f38b7379cf6a8d2f399a0ba1e914fe25"
+    },
+    {
+      "name": "odd-triple-duplicate-last",
+      "leaves": [
+        "c00b4d3c929cb5cc316691ed4636f634576f2c9b2954767234c5274e9dde185d",
+        "87afe6086fe4571e37657e76281301f189c75ebae1d2eaafb56d578067a1d95e",
+        "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2"
+      ],
+      "expected": "9725a8cf4154eb2b9fc5722dc2e65536eb09eba37150859f97132466815de2ae"
+    }
+  ],
+  "leafPreimage": [
+    {
+      "name": "signed-leaf",
+      "row": {
+        "seq": "0",
+        "tenantSeq": "1",
+        "createdAt": "2026-07-24T12:00:00.000Z",
+        "event": "ACTION_APPROVED",
+        "outcome": "SUCCESS",
+        "detail": "event 0",
+        "metadata": {
+          "target": "users",
+          "i": 0
+        },
+        "signerDid": "did:example:human:alice",
+        "signerPublicKey": null,
+        "signedPayload": null,
+        "signature": null,
+        "sigAlg": null,
+        "isBillable": false,
+        "tenantId": "tenant-1",
+        "actorNodeId": "node-a",
+        "subjectNodeId": null,
+        "edgeId": null,
+        "challengeId": null
+      },
+      "canonical": "[\"0\",\"2026-07-24T12:00:00.000Z\",\"ACTION_APPROVED\",\"SUCCESS\",\"event 0\",\"{\\\"i\\\":0,\\\"target\\\":\\\"users\\\"}\",\"did:example:human:alice\",null,null,null,null,false,\"tenant-1\",\"node-a\",null,null,null,\"1\"]",
+      "leafHash": "2ed1e7f5ce2e27febb9dcc8c9fb83b0ca0daa0f90c1fed92e22c3feabe1440bb"
+    },
+    {
+      "name": "plain-leaf",
+      "row": {
+        "seq": "5",
+        "tenantSeq": "6",
+        "createdAt": "2026-07-24T12:00:00.000Z",
+        "event": "ACTION_APPROVED",
+        "outcome": "SUCCESS",
+        "detail": "event 5",
+        "metadata": {
+          "target": "users",
+          "i": 5
+        },
+        "signerDid": null,
+        "signerPublicKey": null,
+        "signedPayload": null,
+        "signature": null,
+        "sigAlg": null,
+        "isBillable": false,
+        "tenantId": "tenant-1",
+        "actorNodeId": "node-a",
+        "subjectNodeId": null,
+        "edgeId": null,
+        "challengeId": null
+      },
+      "canonical": "[\"5\",\"2026-07-24T12:00:00.000Z\",\"ACTION_APPROVED\",\"SUCCESS\",\"event 5\",\"{\\\"i\\\":5,\\\"target\\\":\\\"users\\\"}\",null,null,null,null,null,false,\"tenant-1\",\"node-a\",null,null,null,\"6\"]",
+      "leafHash": "a890e1065f49956b1e048f3939f9ec3adb39d3b611a965cb6e4ca7ab88987047"
+    },
+    {
+      "name": "metadata-utf16-key-order",
+      "row": {
+        "seq": "9",
+        "tenantSeq": "10",
+        "createdAt": "2026-07-24T12:00:00.000Z",
+        "event": "ACTION_APPROVED",
+        "outcome": "SUCCESS",
+        "detail": "event 9",
+        "metadata": {
+          "�": "replacement",
+          "😀": "emoji",
+          "z": {
+            "b": 2,
+            "a": 1
+          },
+          "i": 3
+        },
+        "signerDid": null,
+        "signerPublicKey": null,
+        "signedPayload": null,
+        "signature": null,
+        "sigAlg": null,
+        "isBillable": false,
+        "tenantId": "tenant-1",
+        "actorNodeId": "node-a",
+        "subjectNodeId": null,
+        "edgeId": null,
+        "challengeId": null
+      },
+      "canonical": "[\"9\",\"2026-07-24T12:00:00.000Z\",\"ACTION_APPROVED\",\"SUCCESS\",\"event 9\",\"{\\\"i\\\":3,\\\"z\\\":{\\\"a\\\":1,\\\"b\\\":2},\\\"😀\\\":\\\"emoji\\\",\\\"�\\\":\\\"replacement\\\"}\",null,null,null,null,null,false,\"tenant-1\",\"node-a\",null,null,null,\"10\"]",
+      "leafHash": "15d4bb905671537428cc5c4cc10ac82373db671d1ff07968fb4297ad4c7f4d45"
+    },
+    {
+      "name": "metadata-portable-number-bounds",
+      "row": {
+        "seq": "7",
+        "tenantSeq": "8",
+        "createdAt": "2026-07-24T12:00:00.000Z",
+        "event": "ACTION_APPROVED",
+        "outcome": "SUCCESS",
+        "detail": "event 7",
+        "metadata": {
+          "safeInt": 9007199254740991,
+          "negSafeInt": -9007199254740991,
+          "e15": 1000000000000000,
+          "smallFloat": 0.0001,
+          "wholeFloat": 100,
+          "zero": 0
+        },
+        "signerDid": null,
+        "signerPublicKey": null,
+        "signedPayload": null,
+        "signature": null,
+        "sigAlg": null,
+        "isBillable": false,
+        "tenantId": "tenant-1",
+        "actorNodeId": "node-a",
+        "subjectNodeId": null,
+        "edgeId": null,
+        "challengeId": null
+      },
+      "canonical": "[\"7\",\"2026-07-24T12:00:00.000Z\",\"ACTION_APPROVED\",\"SUCCESS\",\"event 7\",\"{\\\"e15\\\":1000000000000000,\\\"negSafeInt\\\":-9007199254740991,\\\"safeInt\\\":9007199254740991,\\\"smallFloat\\\":0.0001,\\\"wholeFloat\\\":100,\\\"zero\\\":0}\",null,null,null,null,null,false,\"tenant-1\",\"node-a\",null,null,null,\"8\"]",
+      "leafHash": "e63504dc8a3ebc9006cd2eab64c0d3979040fa57afc275975e0432abe72f7bb8"
+    }
+  ],
+  "inclusion": {
+    "leafRow": {
+      "seq": "5",
+      "tenantSeq": "6",
+      "createdAt": "2026-07-24T12:00:00.000Z",
+      "event": "ACTION_APPROVED",
+      "outcome": "SUCCESS",
+      "detail": "event 5",
+      "metadata": {
+        "target": "users",
+        "i": 5
+      },
+      "signerDid": null,
+      "signerPublicKey": null,
+      "signedPayload": null,
+      "signature": null,
+      "sigAlg": null,
+      "isBillable": false,
+      "tenantId": "tenant-1",
+      "actorNodeId": "node-a",
+      "subjectNodeId": null,
+      "edgeId": null,
+      "challengeId": null
+    },
+    "leaf": "a890e1065f49956b1e048f3939f9ec3adb39d3b611a965cb6e4ca7ab88987047",
+    "blockIndex": "1",
+    "blockRoot": "8a58a41652102ff8ce10bc6e64143113bbe2a74b052e9b0f7a295c876735f6ce",
+    "blockProof": [
+      {
+        "siblingHash": "2e2554eda105644f760c6230fe8163860b68a8f9e4ac662558adcd9d0d4796dc",
+        "siblingPosition": "LEFT"
+      },
+      {
+        "siblingHash": "cb9b95a25aa6f38dec2a346f20487a69e7162e60ea4b0039b59ad5ccc653c248",
+        "siblingPosition": "RIGHT"
+      }
+    ],
+    "leafIndex": 1,
+    "blockLeafCount": 3,
+    "checkpointProof": [
+      {
+        "siblingHash": "5c02cdd1d95f9039baacfa783c813ca1e8d09d67dc314b80b00bf075adf2df9b",
+        "siblingPosition": "LEFT"
+      }
+    ],
+    "checkpointLeafIndex": 1,
+    "checkpointLeafCount": 2,
+    "dailyRoot": "21d6a7e816839f55b1c146ec0ed6f0aa8693ef6aa09c42ace808f2c999711b53"
+  },
+  "inclusionNegative": [
+    {
+      "name": "padding-forgery-index-out-of-range",
+      "reason": "0 <= index < leafCount (DEWP §11.1 check 1)",
+      "leaf": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+      "proof": [
+        {
+          "siblingHash": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+          "siblingPosition": "LEFT"
+        },
+        {
+          "siblingHash": "ed692f01f7f6c46930d7ad8f9adad3f9f38b7379cf6a8d2f399a0ba1e914fe25",
+          "siblingPosition": "LEFT"
+        }
+      ],
+      "root": "9725a8cf4154eb2b9fc5722dc2e65536eb09eba37150859f97132466815de2ae",
+      "bounds": {
+        "index": 3,
+        "leafCount": 3
+      },
+      "expected": false
+    },
+    {
+      "name": "padding-forgery-inflated-leaf-count",
+      "reason": "leafCount arrives inside the proof, so inflating it to 4 makes index 3 in-range AND the path length correct. Only the self-pairing rule rejects it: a node hashed against itself away from the unpaired end of an odd level is the signature of an index pointing into padding (DEWP §11.1 check 3)",
+      "leaf": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+      "proof": [
+        {
+          "siblingHash": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+          "siblingPosition": "LEFT"
+        },
+        {
+          "siblingHash": "ed692f01f7f6c46930d7ad8f9adad3f9f38b7379cf6a8d2f399a0ba1e914fe25",
+          "siblingPosition": "LEFT"
+        }
+      ],
+      "root": "9725a8cf4154eb2b9fc5722dc2e65536eb09eba37150859f97132466815de2ae",
+      "bounds": {
+        "index": 3,
+        "leafCount": 4
+      },
+      "expected": false
+    },
+    {
+      "name": "padding-forgery-revived-by-uppercased-sibling",
+      "reason": "uppercase hex decodes to the same 32 bytes, so the root still recomputes, but the self-pairing comparison is on the string and no longer matches. Only DEWP §4.4's 64-character lowercase hex rule refuses this path into padding",
+      "leaf": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+      "proof": [
+        {
+          "siblingHash": "B563A5E69628743929EDDEC0CCFEB0745C39577E12A72E84915EDD6633CB97F2",
+          "siblingPosition": "LEFT"
+        },
+        {
+          "siblingHash": "ed692f01f7f6c46930d7ad8f9adad3f9f38b7379cf6a8d2f399a0ba1e914fe25",
+          "siblingPosition": "LEFT"
+        }
+      ],
+      "root": "9725a8cf4154eb2b9fc5722dc2e65536eb09eba37150859f97132466815de2ae",
+      "bounds": {
+        "index": 3,
+        "leafCount": 4
+      },
+      "expected": false
+    },
+    {
+      "name": "padding-forgery-revived-by-junk-suffixed-sibling",
+      "reason": "a lenient hex decoder stops at the first non-hex character, so a junk suffix leaves the decoded bytes (and the recomputed root) unchanged while defeating the string self-pairing comparison. Only DEWP §4.4's exact 64-character lowercase hex rule refuses it",
+      "leaf": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+      "proof": [
+        {
+          "siblingHash": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2zz",
+          "siblingPosition": "LEFT"
+        },
+        {
+          "siblingHash": "ed692f01f7f6c46930d7ad8f9adad3f9f38b7379cf6a8d2f399a0ba1e914fe25",
+          "siblingPosition": "LEFT"
+        }
+      ],
+      "root": "9725a8cf4154eb2b9fc5722dc2e65536eb09eba37150859f97132466815de2ae",
+      "bounds": {
+        "index": 3,
+        "leafCount": 4
+      },
+      "expected": false
+    },
+    {
+      "name": "uppercased-root-refused",
+      "reason": "the path itself is honest, so this pins the ENCODING rule rather than the tree: digests are 64-character lowercase hex (DEWP §4.4), and a verifier that case-folds its inputs to be lenient — the obvious way to 'fix' this case — reopens the uppercased-sibling forgery above",
+      "leaf": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+      "proof": [
+        {
+          "siblingHash": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+          "siblingPosition": "RIGHT"
+        },
+        {
+          "siblingHash": "ed692f01f7f6c46930d7ad8f9adad3f9f38b7379cf6a8d2f399a0ba1e914fe25",
+          "siblingPosition": "LEFT"
+        }
+      ],
+      "root": "9725A8CF4154EB2B9FC5722DC2E65536EB09EBA37150859F97132466815DE2AE",
+      "bounds": {
+        "index": 2,
+        "leafCount": 3
+      },
+      "expected": false
+    },
+    {
+      "name": "honest-unpaired-tail-still-verifies",
+      "reason": "index 2 of 3 IS the unpaired end, so self-pairing is legitimate there",
+      "leaf": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+      "proof": [
+        {
+          "siblingHash": "b563a5e69628743929eddec0ccfeb0745c39577e12a72e84915edd6633cb97f2",
+          "siblingPosition": "RIGHT"
+        },
+        {
+          "siblingHash": "ed692f01f7f6c46930d7ad8f9adad3f9f38b7379cf6a8d2f399a0ba1e914fe25",
+          "siblingPosition": "LEFT"
+        }
+      ],
+      "root": "9725a8cf4154eb2b9fc5722dc2e65536eb09eba37150859f97132466815de2ae",
+      "bounds": {
+        "index": 2,
+        "leafCount": 3
+      },
+      "expected": true
+    }
+  ],
+  "anchor": {
+    "input": {
+      "dailyRoot": "21d6a7e816839f55b1c146ec0ed6f0aa8693ef6aa09c42ace808f2c999711b53",
+      "timestamp": "2026-07-24T23:59:00.000Z",
+      "issuer": "https://transparency.example.org",
+      "algorithm": "ES256",
+      "seqStart": "0",
+      "seqEnd": "6",
+      "chainHash": "327c094f8b837cca9671fe8a3469e82024924421fe06e098541f524774c6cfc8"
+    },
+    "digestHex": "787550e9196dd77145147508e50e0ba4618fed4eb8d0ae9940203a0f2a05e95c"
+  },
+  "signedAnchor": {
+    "signerKey": {
+      "spkiB64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIU4JBZFRpuf0xD84k7keRajyrKzCPFoeG8Nfc9DIsnykHJCRUml5g0ggxZXSa3sSPsTBoXDZdLAgACMeZJGetQ==",
+      "pkcs8B64": "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg2W3P7cQp3On6xz+M9lkWnj+9UYkr0lP8NatsOHN6OqmhRANCAAQhTgkFkVGm5/TEPziTuR5FqPKsrMI8Wh4bw19z0MiyfKQckJFSaXmDSCDFldJrexI+xMGhcNl0sCAAIx5kkZ61"
+    },
+    "cases": [
+      {
+        "name": "es256-over-raw-digest-verifies",
+        "anchor": {
+          "dailyRoot": "21d6a7e816839f55b1c146ec0ed6f0aa8693ef6aa09c42ace808f2c999711b53",
+          "timestamp": "2026-07-24T23:59:00.000Z",
+          "issuer": "https://transparency.example.org",
+          "algorithm": "ES256",
+          "seqStart": "0",
+          "seqEnd": "6",
+          "chainHash": "327c094f8b837cca9671fe8a3469e82024924421fe06e098541f524774c6cfc8",
+          "keyId": "vector-anchor-key-1",
+          "signature": "MEUCIQDnpQ45owvnPibfiImZxfDDMuA25ZE/1KWSDuLawDY5JwIgXK5Y4AvWa4D0OmJLFAx4E2ugjO9iCQ1XusiPQ2sP6Jo="
+        },
+        "digestHex": "787550e9196dd77145147508e50e0ba4618fed4eb8d0ae9940203a0f2a05e95c",
+        "expectOk": true
+      },
+      {
+        "name": "es256-raw-p1363-anchor-signature-verifies",
+        "anchor": {
+          "dailyRoot": "21d6a7e816839f55b1c146ec0ed6f0aa8693ef6aa09c42ace808f2c999711b53",
+          "timestamp": "2026-07-24T23:59:00.000Z",
+          "issuer": "https://transparency.example.org",
+          "algorithm": "ES256",
+          "seqStart": "0",
+          "seqEnd": "6",
+          "chainHash": "327c094f8b837cca9671fe8a3469e82024924421fe06e098541f524774c6cfc8",
+          "keyId": "vector-anchor-key-1",
+          "signature": "5KBW7BAi1sg/o47hhvfUfu+BPPx3KvSE2kaT8PSTHiXmPXznUTI/0dQGwfZfZXXaElz4nwM3srWaP4FZsozPdw=="
+        },
+        "digestHex": "787550e9196dd77145147508e50e0ba4618fed4eb8d0ae9940203a0f2a05e95c",
+        "expectOk": true
+      },
+      {
+        "name": "same-signature-different-root-fails",
+        "anchor": {
+          "dailyRoot": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "timestamp": "2026-07-24T23:59:00.000Z",
+          "issuer": "https://transparency.example.org",
+          "algorithm": "ES256",
+          "seqStart": "0",
+          "seqEnd": "6",
+          "chainHash": "327c094f8b837cca9671fe8a3469e82024924421fe06e098541f524774c6cfc8",
+          "keyId": "vector-anchor-key-1",
+          "signature": "MEUCIQDnpQ45owvnPibfiImZxfDDMuA25ZE/1KWSDuLawDY5JwIgXK5Y4AvWa4D0OmJLFAx4E2ugjO9iCQ1XusiPQ2sP6Jo="
+        },
+        "expectOk": false
+      },
+      {
+        "name": "same-signature-different-seq-range-fails",
+        "anchor": {
+          "dailyRoot": "21d6a7e816839f55b1c146ec0ed6f0aa8693ef6aa09c42ace808f2c999711b53",
+          "timestamp": "2026-07-24T23:59:00.000Z",
+          "issuer": "https://transparency.example.org",
+          "algorithm": "ES256",
+          "seqStart": "0",
+          "seqEnd": "7",
+          "chainHash": "327c094f8b837cca9671fe8a3469e82024924421fe06e098541f524774c6cfc8",
+          "keyId": "vector-anchor-key-1",
+          "signature": "MEUCIQDnpQ45owvnPibfiImZxfDDMuA25ZE/1KWSDuLawDY5JwIgXK5Y4AvWa4D0OmJLFAx4E2ugjO9iCQ1XusiPQ2sP6Jo="
+        },
+        "expectOk": false
+      },
+      {
+        "name": "same-signature-different-chain-hash-fails",
+        "anchor": {
+          "dailyRoot": "21d6a7e816839f55b1c146ec0ed6f0aa8693ef6aa09c42ace808f2c999711b53",
+          "timestamp": "2026-07-24T23:59:00.000Z",
+          "issuer": "https://transparency.example.org",
+          "algorithm": "ES256",
+          "seqStart": "0",
+          "seqEnd": "6",
+          "chainHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "keyId": "vector-anchor-key-1",
+          "signature": "MEUCIQDnpQ45owvnPibfiImZxfDDMuA25ZE/1KWSDuLawDY5JwIgXK5Y4AvWa4D0OmJLFAx4E2ugjO9iCQ1XusiPQ2sP6Jo="
+        },
+        "expectOk": false
+      }
+    ]
+  }
+}

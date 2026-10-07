@@ -5,6 +5,41 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 
 ## [Unreleased]
 
+## [1.2.0]
+
+- **Offline approval (DIV §5a), the SDK half**, to the contract in `docs/OFFLINE-APPROVAL-SDK.md`.
+  It passes every section of the shared `offline-approval-vectors.json`. Standard library only.
+  - Trust bundles: `VerifyTrustBundle` (RS256 compact JWS against a pinned JWK; the header cannot
+    choose the algorithm), `CheckTrustBundleFreshness` (expiry plus a 30-day age cap),
+    `SaveTrustBundle` / `LoadTrustBundle`, `ApproverAnchor` (offline signing keys only under
+    `BundleAnchorOfflineIntent`) and `RequirementFor` (exact-ID v3 selection; refuses on any conflict).
+    The exact-ID policy checks are exported too: `ValidateExactApprovalPolicy`,
+    `SelectExactApprovalRule`, `LostApprovalConstraints`, `ValidApprovalActionID`.
+  - Trust-anchor files: `ParseTrustAnchorFile` with an `online`/`offline` purpose, and
+    `TrustAnchorApprovers`.
+  - Ceremony: `CreateOfflineChallenge` (requirement from the bundle, never the caller; a blank
+    target is refused; a supplied nonce — `*string` — is used as is, so an empty one is refused),
+    `DecodeChallengeEnvelope` (checks every field's shape before re-canonicalizing),
+    `EncodeSignatureEnvelope` / `DecodeSignatureEnvelope` (byte-identical `SIG1:` JSON across SDKs;
+    decoding takes strict base64url of a JSON object only, trimmed as JavaScript's `trim()` does),
+    `SignChallengeEnvelope` (P-256 `crypto.Signer`, PKCS#8 or SEC1 PEM, DER PKCS#8),
+    `AssembleOfflineReceipt`, `VerificationCode`. Timestamps follow the strict RFC 3339 grammar of
+    DIV §6.2. Builds and behaves identically on 32- and 64-bit platforms.
+  - `UseOfflineApproval` runs the whole approval: delegation pick-up, signature collection,
+    verification with the offline opt-in, buffering, then single-use redemption through
+    `FileRedemptionStore` (exclusive create). `PendingApprovals` / `ClearPendingApproval` read and
+    clear the reconciliation buffer. On-disk layout matches every other SDK.
+  - Client: `RequireApprovalOptions.Offline` opts in per call. The fallback runs only when the gateway
+    could not be asked (a connection failure or timeout, a 5xx, or five consecutive polling failures
+    of those kinds), never on a 4xx — a polling streak containing one returns it — `DENIED`,
+    `EXPIRED`, a local error or an agent-continuity request, and returns the new
+    `StatusOfflineApproved`, never `StatusApproved`. `ReconcileOfflineApprovals` reports buffered
+    approvals, clears each only on a 2xx, and counts and names unreadable records instead of
+    skipping them.
+- Gateway failures are typed: a non-2xx answer is a `*GatewayRefusedError` (status and body; its
+  message is unchanged) and no answer at all is a `*GatewayUnreachableError`, so a caller can tell an
+  outage from a refusal with `errors.As`.
+
 ## [1.1.0]
 
 - No code change. The matched set moves together (`pnpm test:versions`); this release carries the

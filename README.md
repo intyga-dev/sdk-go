@@ -97,6 +97,29 @@ proof of agent integrity.
 - Tokens exchanged from `ClientID`/`ClientSecret` are re-exchanged automatically shortly before the
   gateway's `expires_in` (and once more on a 401), so a long-lived client needs no refresh logic of
   its own; an explicit `Token` is used as-is.
+- A non-2xx gateway answer is returned as a `*GatewayRefusedError` (status code and body), and a
+  gateway that could not be reached at all as a `*GatewayUnreachableError`.
+
+### Offline approval (DIV §5a)
+
+When the gateway cannot be reached, a relying party can build the challenge itself, have the
+approvers sign it on a disconnected device, and verify the result locally against a trust bundle
+exported while the gateway was reachable. The challenge (`DIV1:`) and signature (`SIG1:`) envelopes
+and the on-disk layout are a shared format, pinned by the conformance vectors in
+`vectors/offline-approval-vectors.json`.
+
+- `RequireApprovalOptions.Offline` opts in to the fallback **for that call only**. It runs only when
+  the gateway could not be asked (connection failure, timeout, 5xx, five consecutive polling failures
+  of those kinds), never on a 4xx, `DENIED`, `EXPIRED` or a local error, and the result's status is
+  `StatusOfflineApproved`, never `StatusApproved`.
+- `UseOfflineApproval(ctx, action, opts)` runs the whole ceremony: loads and verifies the bundle,
+  builds the challenge, calls your `CollectSignatures`, verifies the signatures, buffers a record for
+  reconciliation and redeems the nonce once.
+- `ReconcileOfflineApprovals(ctx, opts)` reports buffered approvals when connectivity returns.
+- Building blocks: `VerifyTrustBundle`, `SaveTrustBundle`/`LoadTrustBundle`, `ApproverAnchor`,
+  `RequirementFor`, `ParseTrustAnchorFile`, `CreateOfflineChallenge`, `DecodeChallengeEnvelope`,
+  `EncodeSignatureEnvelope`/`DecodeSignatureEnvelope`, `SignChallengeEnvelope` (the approver's side),
+  `AssembleOfflineReceipt`, `FileRedemptionStore`, `PendingApprovals`/`ClearPendingApproval`.
 
 ## Also available in
 - TypeScript — [`@intyga/sdk`](https://github.com/intyga-dev/sdk)
