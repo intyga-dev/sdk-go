@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 const (
@@ -62,6 +63,9 @@ func writePrivateFile(file string, contents []byte) error {
 		return err
 	}
 	_, werr := f.Write(contents)
+	if werr == nil {
+		werr = f.Sync()
+	}
 	cerr := f.Close()
 	if werr != nil {
 		return werr
@@ -74,6 +78,27 @@ func writePrivateFile(file string, contents []byte) error {
 		return err
 	}
 	_ = os.Chmod(file, privateFileMode)
+	return syncPrivateDir(dir)
+}
+
+func syncPrivateDir(dir string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	} // Windows does not expose directory fsync.
+	for _, entry := range []string{dir, filepath.Dir(dir)} {
+		f, err := os.Open(entry)
+		if err != nil {
+			return err
+		}
+		err = f.Sync()
+		closeErr := f.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
 	return nil
 }
 
@@ -92,8 +117,11 @@ func createPrivateMarker(file, contents string) bool {
 	}
 	_, werr := f.WriteString(contents)
 	_ = f.Chmod(privateFileMode)
+	if werr == nil {
+		werr = f.Sync()
+	}
 	cerr := f.Close()
-	return werr == nil && cerr == nil
+	return werr == nil && cerr == nil && syncPrivateDir(filepath.Dir(file)) == nil
 }
 
 // randomUUID returns a random RFC 4122 version-4 UUID, as crypto.randomUUID() does in the reference.

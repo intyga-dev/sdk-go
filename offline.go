@@ -46,7 +46,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	verify "github.com/intyga-dev/sdk-go/verify"
+	verify "github.com/intyga-dev/sdk-go/v2/verify"
 )
 
 const (
@@ -68,6 +68,8 @@ func isPathSafeNonce(nonce string) bool { return pathSafeNonce.MatchString(nonce
 
 // OfflineChallenge is a locally generated offline challenge, ready to hand to the approvers.
 type OfflineChallenge struct {
+	// TenantID comes from the independently verified trust bundle and is signed into every new v2 challenge.
+	TenantID string `json:"tenantId"`
 	// Nonce is generated HERE, by the party that will redeem it (DIV §5a.2).
 	Nonce string `json:"nonce"`
 	// CanonicalPayload is the exact text the approvers sign (its UTF-8 bytes).
@@ -124,6 +126,9 @@ type OfflineChallengeInput struct {
 // be produced offline), when a delegation would lower the rule's quorum, on a blank target, and on
 // an unsafe or empty nonce.
 func CreateOfflineChallenge(in OfflineChallengeInput) (*OfflineChallenge, error) {
+	if in.Bundle == nil || in.Bundle.TenantID == "" {
+		return nil, errors.New("the verified trust bundle is missing its required tenantId")
+	}
 	// DIV §3 Invariant 5 (Target Isolation): a blank target binds no execution environment, so the
 	// approval would verify at every relying party that also asserts it.
 	if jsTrim(in.Target) == "" {
@@ -175,6 +180,9 @@ func CreateOfflineChallenge(in OfflineChallengeInput) (*OfflineChallenge, error)
 		return nil, fmt.Errorf(`this delegation would lower the quorum for "%s" from %d to %d. A delegation may narrow WHO approves, never HOW MANY (DIV §5a.5)`,
 			in.ActionType, resolved.Requirement.RequiredApprovals, in.Delegation.DelegatedQuorum)
 	}
+	if in.Delegation != nil && in.Delegation.TenantID != in.Bundle.TenantID {
+		return nil, errors.New("the delegation and trust bundle belong to different tenants or DIV versions")
+	}
 
 	// Under a delegation the eligible set and the quorum are the DELEGATED ones. Everything else in
 	// the requirement still comes from the bundle.
@@ -190,11 +198,12 @@ func CreateOfflineChallenge(in OfflineChallengeInput) (*OfflineChallenge, error)
 	}
 
 	canonical, err := verify.CanonicalOfflineIntentPayload(in.Target, in.ActionType, in.Display, params,
-		in.Requester, requirement, nonce, challengedAt, expiresAt)
+		in.Requester, requirement, nonce, challengedAt, expiresAt, in.Bundle.TenantID)
 	if err != nil {
 		return nil, fmt.Errorf("the action cannot be canonicalized: %w", err)
 	}
 	return &OfflineChallenge{
+		TenantID:         in.Bundle.TenantID,
 		Nonce:            nonce,
 		CanonicalPayload: canonical,
 		VerificationCode: VerificationCode(canonical),
@@ -221,6 +230,7 @@ func VerificationCode(canonicalPayload string) string {
 
 // DecodedChallenge is what an approver's signing tool shows before asking for confirmation.
 type DecodedChallenge struct {
+	TenantID         string                     `json:"tenantId,omitempty"`
 	CanonicalPayload string                     `json:"canonicalPayload"`
 	VerificationCode string                     `json:"verificationCode"`
 	Target           string                     `json:"target"`
@@ -268,6 +278,8 @@ func DecodeChallengeEnvelope(envelope string) (*DecodedChallenge, error) {
 	}
 	const notCanonicalizable = "challenge payload carries values that cannot be canonicalized — refusing to sign it"
 	var fields struct {
+		V            int                        `json:"v"`
+		TenantID     string                     `json:"tenantId"`
 		Target       string                     `json:"target"`
 		ActionType   string                     `json:"actionType"`
 		Display      string                     `json:"display"`
@@ -281,8 +293,12 @@ func DecodeChallengeEnvelope(envelope string) (*DecodedChallenge, error) {
 	if err := json.Unmarshal(payload, &fields); err != nil {
 		return nil, errors.New(notCanonicalizable)
 	}
+	var tenantID []string
+	if fields.V == verify.DivTenantBoundVersion {
+		tenantID = []string{fields.TenantID}
+	}
 	rebuilt, err := verify.CanonicalOfflineIntentPayload(fields.Target, fields.ActionType, fields.Display,
-		fields.Params, fields.Requester, fields.Requirement, fields.Nonce, fields.ChallengedAt, fields.ExpiresAt)
+		fields.Params, fields.Requester, fields.Requirement, fields.Nonce, fields.ChallengedAt, fields.ExpiresAt, tenantID...)
 	if err != nil {
 		return nil, errors.New(notCanonicalizable)
 	}
@@ -291,6 +307,7 @@ func DecodeChallengeEnvelope(envelope string) (*DecodedChallenge, error) {
 		return nil, errors.New("challenge payload is not canonical — re-serializing it produces different bytes, so a signature over it would verify nowhere")
 	}
 	return &DecodedChallenge{
+		TenantID:         fields.TenantID,
 		CanonicalPayload: canonical,
 		VerificationCode: VerificationCode(canonical),
 		Target:           fields.Target,
@@ -309,6 +326,20 @@ func DecodeChallengeEnvelope(envelope string) (*DecodedChallenge, error) {
 // field is well-typed: the six text fields are strings, the target is not blank, params and
 // requirement are objects, and requester is an object with a string did.
 func challengeShapeProblem(p map[string]interface{}) string {
+	version, ok := p["v"].(float64)
+	if !ok || (version != verify.DivVersion && version != verify.DivTenantBoundVersion) {
+		return "has an unsupported DIV payload version"
+	}
+	_, hasTenant := p["tenantId"]
+	if version == verify.DivVersion && hasTenant {
+		return "is a legacy v1 payload carrying tenantId"
+	}
+	if version == verify.DivTenantBoundVersion {
+		tenantID, ok := p["tenantId"].(string)
+		if !ok || tenantID == "" {
+			return "is a v2 payload without a non-empty tenantId"
+		}
+	}
 	for _, field := range []string{"target", "actionType", "display", "nonce", "challengedAt", "expiresAt"} {
 		if _, ok := p[field].(string); !ok {
 			return "field " + field + " is not a string"
@@ -409,9 +440,10 @@ type SignedChallenge struct {
 // SignChallengeEnvelope signs a `DIV1:` challenge as an approver — the library half of `intyga sign`.
 //
 // It decodes first (DecodeChallengeEnvelope), so only a canonical div-offline-intent is ever signed,
-// and refuses a challenge whose expiresAt is unreadable or already past, a SignerDID that is not a
-// DID, and any key that is not a P-256 private key. The signature is ES256 over the canonical
-// payload's UTF-8 bytes, IEEE P1363 (r‖s), base64; the envelope's key is the signer's SPKI.
+// and refuses archival DIV v1 challenges, a challenge whose expiresAt is unreadable or already past,
+// a SignerDID that is not a DID, and any key that is not a P-256 private key. The signature is ES256
+// over the canonical payload's UTF-8 bytes, IEEE P1363 (r‖s), base64; the envelope's key is the
+// signer's SPKI.
 //
 // It shows nothing. The caller MUST have shown the decoded challenge to the approver and had them
 // confirm the verification code with the operator before calling this (DIV §5a.8) — an approver who
@@ -420,6 +452,12 @@ func SignChallengeEnvelope(envelope string, opts SignChallengeOptions) (*SignedC
 	challenge, err := DecodeChallengeEnvelope(envelope)
 	if err != nil {
 		return nil, err
+	}
+	// Legacy v1 remains decodable so historical approvals can be inspected, but every newly
+	// produced signature must bind an independently trusted tenant. Otherwise a live v1 challenge
+	// could be replayed into whichever tenant later accepts the same signing key.
+	if challenge.TenantID == "" {
+		return nil, errors.New("legacy DIV v1 offline challenges are archival-only and cannot be freshly signed")
 	}
 	// A timestamp we cannot read is not one we can say is still valid (DIV §6.2).
 	expiry, ok := parseTimestampMillis(challenge.ExpiresAt)
@@ -653,7 +691,7 @@ func UseOfflineApproval(ctx context.Context, expected OfflineAction, opts Offlin
 	// ones who must have signed that entitlement away.
 	var delegation *verify.VerifiedDelegation
 	if opts.DelegationDir != "" {
-		found, reason := findDelegation(opts.DelegationDir, bundle, expected, opts.AsOf)
+		found, reason := findDelegation(opts.DelegationDir, bundle, expected, opts.RequesterDID, opts.AsOf)
 		if reason != "" {
 			warn("⚠ OFFLINE APPROVAL: " + reason)
 		}
@@ -710,10 +748,12 @@ func UseOfflineApproval(ctx context.Context, expected OfflineAction, opts Offlin
 	}
 	floor := requirementFloorOf(ordinary.Requirement)
 	result := verify.VerifyApprovalReceipt(receipt, verify.Expected{
-		Target:     expected.Target,
-		ActionType: expected.ActionType,
-		Params:     params,
-		Nonce:      challenge.Nonce,
+		TenantID:     &bundle.TenantID,
+		Target:       expected.Target,
+		ActionType:   expected.ActionType,
+		Params:       params,
+		Nonce:        challenge.Nonce,
+		RequesterDID: opts.RequesterDID,
 		// Restricted to the approvers eligible for THIS action. The one place offline signing keys
 		// count: this receipt is a div-offline-intent.
 		Approvers:   ApproverAnchor(bundle, challenge.ApproverDids, BundleAnchorOfflineIntent),
@@ -737,7 +777,9 @@ func UseOfflineApproval(ctx context.Context, expected OfflineAction, opts Offlin
 	// Buffer BEFORE redeeming: a crash between the two must leave a pending record behind. A spurious
 	// record reconciles harmlessly; the opposite order could leave a redeemed, executed approval
 	// invisible to reconciliation forever.
-	bufferForReconciliation(challenge, receipt, delegation, opts, warn)
+	if err := bufferForReconciliation(challenge, receipt, delegation, opts); err != nil {
+		return nil, errors.New("could not buffer offline approval for reconciliation")
+	}
 	pending := PendingOptions{BundleDir: opts.BundleDir, BufferDir: opts.BufferDir}
 	if !store.Redeem(challenge.Nonce) {
 		ClearPendingApproval(challenge.Nonce, pending)
@@ -764,7 +806,7 @@ func UseOfflineApproval(ctx context.Context, expected OfflineAction, opts Offlin
 // file in dir in name order (jsonFilesIn). A file that fails to verify is REPORTED, not silently skipped: a
 // delegation the operator believes they hold but which does not apply is exactly what they need to
 // be told during an incident.
-func findDelegation(dir string, bundle *TrustBundle, expected OfflineAction, asOf time.Time) (*verify.VerifiedDelegation, string) {
+func findDelegation(dir string, bundle *TrustBundle, expected OfflineAction, requesterDID string, asOf time.Time) (*verify.VerifiedDelegation, string) {
 	resolved, ok := RequirementFor(bundle, expected.ActionType, expected.Display)
 	if !ok {
 		return nil, "no unambiguous ordinary approval rule applies to this delegation — export a fresh trust bundle"
@@ -777,22 +819,35 @@ func findDelegation(dir string, bundle *TrustBundle, expected OfflineAction, asO
 	for _, name := range names {
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		var receipt verify.ApprovalReceipt
+		var artifact map[string]json.RawMessage
+		if err == nil && json.Unmarshal(data, &artifact) == nil {
+			if nested, ok := artifact["receipt"]; ok {
+				data = nested
+			}
+		}
 		if err != nil || json.Unmarshal(data, &receipt) != nil {
 			rejected = append(rejected, name+": unreadable")
 			continue
 		}
 		floor := requirementFloorOf(resolved.Requirement)
+		options := verify.VerifyOptions{AsOf: asOf}
+		if bundle.WebAuthn != nil {
+			options.ExpectedOrigin = bundle.WebAuthn.Origin
+			options.ExpectedRpID = bundle.WebAuthn.RpID
+		}
 		res, d := verify.VerifyDelegation(receipt, verify.Expected{
-			Target:     expected.Target,
-			ActionType: expected.ActionType,
-			Params:     expected.Params,
+			TenantID:     &bundle.TenantID,
+			RequesterDID: requesterDID,
+			Target:       expected.Target,
+			ActionType:   expected.ActionType,
+			Params:       expected.Params,
 			// The ORDINARY approver set — not the delegates. Ordinary keys only: an offline signing
 			// key must never seal a delegation.
 			Approvers: ApproverAnchor(bundle, resolved.ApproverDids, BundleAnchorOrdinary),
 			// DIV §5 step 3d / §5a.5: the sealing requirement may not be weaker than the ordinary
 			// rule. The AAGUID comparison below stays, because the floor does not cover allowedAaguids.
 			Requirement: &floor,
-		}, verify.VerifyOptions{AsOf: asOf})
+		}, options)
 		if !res.OK || d == nil {
 			rejected = append(rejected, name+": "+res.Reason)
 			continue
@@ -866,10 +921,8 @@ func (o PendingOptions) dir() string {
 }
 
 // bufferForReconciliation records the approval so it can be reported when the gateway is reachable
-// again. Best-effort by design — a buffering failure must never block the emergency action — and
-// warned about loudly instead, because an unrecorded approval is exactly what reconciliation exists
-// to surface.
-func bufferForReconciliation(challenge *OfflineChallenge, receipt verify.ApprovalReceipt, delegation *verify.VerifiedDelegation, opts OfflineApprovalOptions, warn func(string)) {
+// again. Failure propagates before redemption: an unrecorded action is refused.
+func bufferForReconciliation(challenge *OfflineChallenge, receipt verify.ApprovalReceipt, delegation *verify.VerifiedDelegation, opts OfflineApprovalOptions) error {
 	record := PendingApproval{
 		Nonce:      challenge.Nonce,
 		Target:     challenge.Target,
@@ -881,7 +934,7 @@ func bufferForReconciliation(challenge *OfflineChallenge, receipt verify.Approva
 	if delegation != nil {
 		record.DelegationNonce = delegation.Nonce
 	}
-	err := func() error {
+	return func() error {
 		if !isPathSafeNonce(challenge.Nonce) {
 			return errors.New("nonce is not a safe path segment")
 		}
@@ -895,9 +948,6 @@ func bufferForReconciliation(challenge *OfflineChallenge, receipt verify.Approva
 		dir := PendingOptions{BundleDir: opts.BundleDir, BufferDir: opts.BufferDir}.dir()
 		return writePrivateFile(filepath.Join(dir, challenge.Nonce+".json"), []byte(buf.String()))
 	}()
-	if err != nil {
-		warn(fmt.Sprintf("⚠ OFFLINE APPROVAL: could not buffer %s for reconciliation (%v). Report this manually — an unreported approval is indistinguishable from an unauthorized one.", challenge.Nonce, err))
-	}
 }
 
 // PendingApprovals reads the offline approvals buffered by UseOfflineApproval but not yet reported, in

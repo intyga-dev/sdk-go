@@ -20,7 +20,7 @@ import (
 	"regexp"
 	"strings"
 
-	verify "github.com/intyga-dev/sdk-go/verify"
+	verify "github.com/intyga-dev/sdk-go/v2/verify"
 )
 
 // TrustAnchorFileType is the `type` of a trust-anchor file.
@@ -51,6 +51,9 @@ type TrustAnchorWebAuthn struct {
 type TrustAnchorFile struct {
 	Type string `json:"type"`
 	V    int    `json:"v"`
+	// TenantID is optional for historical anchors. When present, callers can pass it directly as the
+	// verifier's independently trusted Expected.TenantID for DIV v2 receipts.
+	TenantID string `json:"tenantId,omitempty"`
 	// Purpose is always set after parsing; absent in the file means online.
 	Purpose TrustAnchorPurpose `json:"purpose"`
 	// Epoch is a monotonic export counter. It carries no cryptographic weight.
@@ -121,6 +124,10 @@ func ParseTrustAnchorFile(jsonText string, purpose TrustAnchorPurpose) (*TrustAn
 	if _, present := obj["exportedAt"]; present && !ok {
 		return fail("exportedAt must be a string")
 	}
+	tenantID, tenantOK := obj["tenantId"].(string)
+	if _, present := obj["tenantId"]; present && (!tenantOK || tenantID == "") {
+		return fail("tenantId must be a non-empty string when present")
+	}
 
 	entries, ok := obj["approvers"].([]interface{})
 	if !ok || len(entries) == 0 {
@@ -189,6 +196,7 @@ func ParseTrustAnchorFile(jsonText string, purpose TrustAnchorPurpose) (*TrustAn
 	return &TrustAnchorFile{
 		Type:       TrustAnchorFileType,
 		V:          1,
+		TenantID:   tenantID,
 		Purpose:    filePurpose,
 		Epoch:      int64(epoch),
 		Label:      label,

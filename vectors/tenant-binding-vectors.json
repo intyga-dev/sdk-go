@@ -1,0 +1,1670 @@
+{
+  "version": 1,
+  "note": "DIV v2 tenant binding. expectedTenantId:null means the caller supplies no tenant expectation; it is never read from the receipt.",
+  "tenantId": "tenant-alpha",
+  "otherTenantId": "tenant-beta",
+  "keys": [
+    {
+      "id": "alice",
+      "did": "did:intyga:alice",
+      "spkiB64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+      "coseB64": "pQECAyYgASFYIAMvp7EzZSobqwuJJIBqlxW7a07P142VN5V/F0igS5mWIlgg48RePSI/KeYrdJL80riaOv0v0AV/QvkdAZnn3LzzhGE="
+    }
+  ],
+  "agentReceiptDigestCases": [
+    {
+      "name": "legacy-witness-missing-signer-did-normalizes-empty",
+      "receipt": {
+        "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Payments agent authority",
+        "params": {},
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+        "sigAlg": "ES256",
+        "verificationCode": "6BDE-B0FD"
+      },
+      "expected": "sha256:03ff335a9587175e2ce7f85d654c6bc5a500357c185738d3bf1d93670df5be76"
+    },
+    {
+      "name": "array-witness-missing-signer-did-projects-null",
+      "receipt": {
+        "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Payments agent authority",
+        "params": {},
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+        "sigAlg": "ES256",
+        "verificationCode": "6BDE-B0FD",
+        "signatures": [
+          {
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+            "sigAlg": "ES256"
+          }
+        ]
+      },
+      "expected": "sha256:5ee8da1f2514014ce879f58c2165940170582f80e8f3bd2b28f8146ef8371e58"
+    },
+    {
+      "name": "array-witness-null-signer-did-projects-null",
+      "receipt": {
+        "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Payments agent authority",
+        "params": {},
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+        "sigAlg": "ES256",
+        "verificationCode": "6BDE-B0FD",
+        "signatures": [
+          {
+            "signerDid": null,
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+            "sigAlg": "ES256"
+          }
+        ]
+      },
+      "expected": "sha256:5ee8da1f2514014ce879f58c2165940170582f80e8f3bd2b28f8146ef8371e58"
+    },
+    {
+      "name": "array-witness-empty-signer-did-preserves-empty",
+      "receipt": {
+        "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Payments agent authority",
+        "params": {},
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+        "sigAlg": "ES256",
+        "verificationCode": "6BDE-B0FD",
+        "signatures": [
+          {
+            "signerDid": "",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+            "sigAlg": "ES256"
+          }
+        ]
+      },
+      "expected": "sha256:03ff335a9587175e2ce7f85d654c6bc5a500357c185738d3bf1d93670df5be76"
+    }
+  ],
+  "cases": [
+    {
+      "name": "tenant-v2-intent-valid",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "g4/o2uO5zGTeoGOCYLX9ahsdNBNkQ72cgY6nP+xjL9kMgMxADv+sj+YANZr1vU/DdhQiSM97l3M9HirMiHR76w==",
+        "sigAlg": "ES256",
+        "verificationCode": "844F-EB95"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-fractional-params-valid",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":0.30000000000000004,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 0.30000000000000004,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "xyGXscE9RHeANLqvt3qGSQTvUmiNxR31BV0VX4ViKsWPZzpmm1IKVeDgE12IMpZLKXoJrCbImxvezbx3b+azog==",
+        "sigAlg": "ES256",
+        "verificationCode": "9BD0-7532"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 0.30000000000000004,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-offline-fractional-params-valid",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"challengedAt\":\"2026-10-10T12:00:00.000Z\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2026-10-10T12:10:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":0.30000000000000004,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-offline-intent\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 0.30000000000000004,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "IT0L1Wbc5hLnrFobzyxNfd8l36Qz4WBjysr1vR863ftTFd2xBpIknCxDla+3/UCao85xd+bWzdV/ZyfQpGggMQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "A36B-73CF"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 0.30000000000000004,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z",
+        "allowOffline": true
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-delegation-fractional-params-valid",
+      "verifier": "delegation",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"delegatedQuorum\":1,\"delegatedTo\":[\"did:intyga:alice\"],\"display\":\"Wire USD 4,200\",\"expiresAt\":\"2026-10-11T12:00:00.000Z\",\"nonce\":\"tenant-delegation-nonce\",\"params\":{\"amount\":0.30000000000000004,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-delegation\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 0.30000000000000004,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "a+U72+VBw+OT2MgP4r9pbu7LrtaWVmcNOhR+0eCzkyhILYBqkyVeYFY2ssjBzZiL2A/rDB+LK4YmX0GFJQI70w==",
+        "sigAlg": "ES256",
+        "verificationCode": "8D83-A643"
+      },
+      "expected": {
+        "approverDids": {
+          "did:intyga:alice": [
+            "alice"
+          ]
+        },
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 0.30000000000000004,
+          "currency": "USD"
+        }
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-intent-wrong-expected",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "g4/o2uO5zGTeoGOCYLX9ahsdNBNkQ72cgY6nP+xjL9kMgMxADv+sj+YANZr1vU/DdhQiSM97l3M9HirMiHR76w==",
+        "sigAlg": "ES256",
+        "verificationCode": "844F-EB95"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-beta",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-intent-case-sensitive-mismatch",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "g4/o2uO5zGTeoGOCYLX9ahsdNBNkQ72cgY6nP+xjL9kMgMxADv+sj+YANZr1vU/DdhQiSM97l3M9HirMiHR76w==",
+        "sigAlg": "ES256",
+        "verificationCode": "844F-EB95"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "Tenant-Alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-intent-whitespace-mismatch",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "g4/o2uO5zGTeoGOCYLX9ahsdNBNkQ72cgY6nP+xjL9kMgMxADv+sj+YANZr1vU/DdhQiSM97l3M9HirMiHR76w==",
+        "sigAlg": "ES256",
+        "verificationCode": "844F-EB95"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": " tenant-alpha ",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-intent-missing-expected",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "g4/o2uO5zGTeoGOCYLX9ahsdNBNkQ72cgY6nP+xjL9kMgMxADv+sj+YANZr1vU/DdhQiSM97l3M9HirMiHR76w==",
+        "sigAlg": "ES256",
+        "verificationCode": "844F-EB95"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": null,
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-intent-empty-expected",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "g4/o2uO5zGTeoGOCYLX9ahsdNBNkQ72cgY6nP+xjL9kMgMxADv+sj+YANZr1vU/DdhQiSM97l3M9HirMiHR76w==",
+        "sigAlg": "ES256",
+        "verificationCode": "844F-EB95"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-intent-missing-signed-tenant",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "ekgIUPX6nlStgq9498SSdwi0X5eWmbqfMu3rIGG27IyG2QmgUdmrNrswhoWLxAyWlC89QYXE0WbxwlmliVlloQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "72DC-8971"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-intent-empty-signed-tenant",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "cmXBbOTulxFc3Q9QPyeNfdEsr4EkfedMEkno1uN5bP4ye9ggXydaVNSGBOhmUwj8ccuCkDvZHpFux3f5IE1AQA==",
+        "sigAlg": "ES256",
+        "verificationCode": "06AE-F6DE"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-intent-downgrade-refused",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"type\":\"div-intent-verification\",\"v\":1}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "yPAiaWifmnLtzKIOQO0FP4aNpICtAeaArAYyEF9dyTS4Y90c3kx95TRUi+tYP9q+lxCXswbPG43o13oPx/prgQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "724A-3535"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v1-intent-legacy-valid",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"type\":\"div-intent-verification\",\"v\":1}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "R6zSnfqjPRS2SAnzCSb8cSzvvudFTFM7pzwrtjvW7hLp1DX8ZaqZ9ZTw7GwGv1i72nv3W0Fn+XqW7mEZkNsANg==",
+        "sigAlg": "ES256",
+        "verificationCode": "724A-3535"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": null,
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v1-intent-with-tenant-refused",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"type\":\"div-intent-verification\",\"v\":1}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "R6zSnfqjPRS2SAnzCSb8cSzvvudFTFM7pzwrtjvW7hLp1DX8ZaqZ9ZTw7GwGv1i72nv3W0Fn+XqW7mEZkNsANg==",
+        "sigAlg": "ES256",
+        "verificationCode": "724A-3535"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v1-offline-with-tenant-refused",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"challengedAt\":\"2026-10-10T12:00:00.000Z\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2026-10-10T12:10:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"type\":\"div-offline-intent\",\"v\":1}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "76C10srY6jXwBQ9Z+HwfFQBB/yeHlK4OA6i25JXMIHgi9tAZsA+e2T/obl80RWf30k0gOQwED6t84ZQQ9nqOUQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "FC1A-8425"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z",
+        "allowOffline": true
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v1-delegation-with-tenant-refused",
+      "verifier": "delegation",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"delegatedQuorum\":1,\"delegatedTo\":[\"did:intyga:alice\"],\"display\":\"Wire USD 4,200\",\"expiresAt\":\"2026-10-11T12:00:00.000Z\",\"nonce\":\"tenant-delegation-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"type\":\"div-delegation\",\"v\":1}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "EoJJ+KW2ELcH4IPGHl+OkqRZqAWYpfce1OL/G1VCDakQF4UwQjeztTt5vPvjpisc3ZWjn7xzaOjMD55k8QM81Q==",
+        "sigAlg": "ES256",
+        "verificationCode": "5D35-11AB"
+      },
+      "expected": {
+        "approverDids": {
+          "did:intyga:alice": [
+            "alice"
+          ]
+        },
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        }
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v1-authority-with-tenant-refused",
+      "verifier": "authority",
+      "receipt": {
+        "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"type\":\"div-agent-authority\",\"v\":1}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Payments agent authority",
+        "params": {},
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "PEs8LlDXuxCSyluy9KCcxztQG0eXJP6jECLf3St1iKtxo5dsOdFXfZXfRl7lpocHlmouPVEtt21d2lhdFLmUfQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "805D-ED79"
+      },
+      "expected": {
+        "approverDids": {
+          "did:intyga:alice": [
+            "alice"
+          ]
+        },
+        "target": "prod-payments",
+        "agentDid": "did:intyga:agent:payments"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v1-platform-with-tenant-refused",
+      "verifier": "platform",
+      "receipt": {
+        "canonicalPayload": "{\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"hashAlg\":\"SHA-256\",\"nonce\":\"tenant-platform-nonce\",\"payloadHash\":\"ca346d8a20f8b63acfe2a03de9f4e497157a034759cff94443c46b3b9007dc92\",\"rpId\":\"platform.example\",\"signedAt\":\"2026-10-10T12:00:00.000Z\",\"subject\":{\"externalId\":\"cust-42\"},\"type\":\"div-platform-intent\",\"v\":1}",
+        "payloadHash": "ca346d8a20f8b63acfe2a03de9f4e497157a034759cff94443c46b3b9007dc92",
+        "rpId": "platform.example",
+        "subject": {
+          "externalId": "cust-42"
+        },
+        "nonce": "tenant-platform-nonce",
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "pQECAyYgASFYIAMvp7EzZSobqwuJJIBqlxW7a07P142VN5V/F0igS5mWIlgg48RePSI/KeYrdJL80riaOv0v0AV/QvkdAZnn3LzzhGE=",
+        "signature": "MEUCIHkkCWBrJ+VbWMcwBYUq+AxKe2xhec2JRpzY9bfTeAy7AiEA4ezW5Uhyd0MrGxtjk7iazRSMgoW/lfY0JRTwcAkhnLg=",
+        "sigAlg": "WEBAUTHN",
+        "authenticatorData": "sivkLUTZ98fgChDu7ojCbAa9tgXWcAqeNzZLprGoXBUFAAAAAQ==",
+        "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKbGVIQnBjbVZ6UVhRaU9pSXlNREkzTFRFd0xURXdWREV5T2pBd09qQXdMakF3TUZvaUxDSm9ZWE5vUVd4bklqb2lVMGhCTFRJMU5pSXNJbTV2Ym1ObElqb2lkR1Z1WVc1MExYQnNZWFJtYjNKdExXNXZibU5sSWl3aWNHRjViRzloWkVoaGMyZ2lPaUpqWVRNME5tUTRZVEl3WmpoaU5qTmhZMlpsTW1Fd00yUmxPV1kwWlRRNU56RTFOMkV3TXpRM05UbGpabVk1TkRRME0yTTBObUl6WWprd01EZGtZemt5SWl3aWNuQkpaQ0k2SW5Cc1lYUm1iM0p0TG1WNFlXMXdiR1VpTENKemFXZHVaV1JCZENJNklqSXdNall0TVRBdE1UQlVNVEk2TURBNk1EQXVNREF3V2lJc0luTjFZbXBsWTNRaU9uc2laWGgwWlhKdVlXeEpaQ0k2SW1OMWMzUXRORElpZlN3aWRIbHdaU0k2SW1ScGRpMXdiR0YwWm05eWJTMXBiblJsYm5RaUxDSjJJam94ZlEiLCJvcmlnaW4iOiJodHRwczovL3BsYXRmb3JtLmV4YW1wbGUiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "verificationCode": "98AB-20C1"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "payloadHash": "ca346d8a20f8b63acfe2a03de9f4e497157a034759cff94443c46b3b9007dc92",
+        "rpId": "platform.example",
+        "nonce": "tenant-platform-nonce",
+        "subjectExternalId": "cust-42"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z",
+        "expectedOrigin": "https://platform.example"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-offline-valid",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"challengedAt\":\"2026-10-10T12:00:00.000Z\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2026-10-10T12:10:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-offline-intent\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "/sWTphZo7TSFxogld9Q5uV3c96r1Edn3MN0ho+emvrtjDgaoUTxx1r//A2Xkak5kNhri3aoNYM3LfZzVHc0EsQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "8BAF-5F30"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z",
+        "allowOffline": true
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-agent-intent-valid",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"action\":{\"amount\":null,\"reversibility\":\"irreversible\"},\"actionType\":\"payments.wire\",\"agent\":{\"configDigest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"delegatedBy\":null,\"label\":\"Release agent\"},\"display\":\"Wire USD 4,200\",\"evidence\":null,\"exp\":\"2026-10-10T12:05:00.000Z\",\"nbf\":\"2026-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"session\":{\"aggregate\":null,\"id\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"prev\":null,\"seq\":\"1\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "5e7o6BiR0Qt3RtR0OUCJntY+jwYlDDERHvzfqrunClQQNgfaiYtoUnKrD2od1eiFU/SwuVg0oOyZoVanckgrpQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "1F61-9B17"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce",
+        "requesterDid": "did:intyga:service:release",
+        "agentContext": {
+          "action": {
+            "reversibility": "irreversible",
+            "amount": null
+          },
+          "agent": {
+            "label": "Release agent",
+            "configDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "delegatedBy": null
+          },
+          "session": {
+            "id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "seq": "1",
+            "prev": null,
+            "aggregate": null
+          },
+          "nbf": "2026-10-10T12:00:00.000Z"
+        }
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-delegated-agent-chain-valid",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"action\":{\"amount\":null,\"reversibility\":\"irreversible\"},\"actionType\":\"payments.wire\",\"agent\":{\"configDigest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"delegatedBy\":\"sha256:1762defb5330a4658268ccd7a02b45f04687a92212cee5ea5bcdd6c60bd4454b\",\"label\":\"Release agent\"},\"display\":\"Wire USD 4,200\",\"evidence\":null,\"exp\":\"2026-10-10T12:05:00.000Z\",\"nbf\":\"2026-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent:worker\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"session\":{\"aggregate\":null,\"id\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"prev\":null,\"seq\":\"1\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:agent:worker"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "iiIiwp8J2bav0+gKNw1YnEmLFd4jcXFwtHwpXLaZNs6XDAZm1mTqNCvtfmmeFDhnYsbTtFTlrJtmfU9fenlkgA==",
+        "sigAlg": "ES256",
+        "verificationCode": "B760-44F5"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce",
+        "requesterDid": "did:intyga:agent:worker",
+        "agentContext": {
+          "action": {
+            "reversibility": "irreversible",
+            "amount": null
+          },
+          "agent": {
+            "label": "Release agent",
+            "configDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "delegatedBy": "sha256:1762defb5330a4658268ccd7a02b45f04687a92212cee5ea5bcdd6c60bd4454b"
+          },
+          "session": {
+            "id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "seq": "1",
+            "prev": null,
+            "aggregate": null
+          },
+          "nbf": "2026-10-10T12:00:00.000Z"
+        }
+      },
+      "expectedTenantId": "tenant-alpha",
+      "chain": [
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+            "sigAlg": "ES256",
+            "verificationCode": "6BDE-B0FD"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "params": {
+              "amount": 4200,
+              "currency": "USD"
+            },
+            "agentDid": "did:intyga:agent:payments"
+          },
+          "expectedTenantId": "tenant-alpha"
+        },
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.wire\"],\"agent\":{\"did\":\"did:intyga:agent:worker\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-child-valid-nonce\",\"parentReceiptHash\":\"sha256:9717edb54939adba96f55c9f3029cc0f93e4c8ef91f45824d1cb68c0b6704e0c\",\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "3idayR1lhzayQtxpgemwUg4n1YbrAZjxplEuxXre28VLHU5LoMYHsLTzSKk8NRGApvDV7gZfh8l6Ge4vXuxhvQ==",
+            "sigAlg": "ES256",
+            "verificationCode": "B086-5119"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "params": {
+              "amount": 4200,
+              "currency": "USD"
+            },
+            "agentDid": "did:intyga:agent:worker"
+          },
+          "expectedTenantId": "tenant-alpha"
+        }
+      ],
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-delegated-agent-requester-did-mismatch",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"action\":{\"amount\":null,\"reversibility\":\"irreversible\"},\"actionType\":\"payments.wire\",\"agent\":{\"configDigest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"delegatedBy\":\"sha256:1762defb5330a4658268ccd7a02b45f04687a92212cee5ea5bcdd6c60bd4454b\",\"label\":\"Release agent\"},\"display\":\"Wire USD 4,200\",\"evidence\":null,\"exp\":\"2026-10-10T12:05:00.000Z\",\"nbf\":\"2026-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:agent:worker\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"session\":{\"aggregate\":null,\"id\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"prev\":null,\"seq\":\"1\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:agent:worker"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "iiIiwp8J2bav0+gKNw1YnEmLFd4jcXFwtHwpXLaZNs6XDAZm1mTqNCvtfmmeFDhnYsbTtFTlrJtmfU9fenlkgA==",
+        "sigAlg": "ES256",
+        "verificationCode": "B760-44F5"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce",
+        "requesterDid": "did:intyga:agent:another",
+        "agentContext": {
+          "action": {
+            "reversibility": "irreversible",
+            "amount": null
+          },
+          "agent": {
+            "label": "Release agent",
+            "configDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "delegatedBy": "sha256:1762defb5330a4658268ccd7a02b45f04687a92212cee5ea5bcdd6c60bd4454b"
+          },
+          "session": {
+            "id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "seq": "1",
+            "prev": null,
+            "aggregate": null
+          },
+          "nbf": "2026-10-10T12:00:00.000Z"
+        }
+      },
+      "expectedTenantId": "tenant-alpha",
+      "chain": [
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+            "sigAlg": "ES256",
+            "verificationCode": "6BDE-B0FD"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "params": {
+              "amount": 4200,
+              "currency": "USD"
+            },
+            "agentDid": "did:intyga:agent:payments"
+          },
+          "expectedTenantId": "tenant-alpha"
+        },
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.wire\"],\"agent\":{\"did\":\"did:intyga:agent:worker\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-child-valid-nonce\",\"parentReceiptHash\":\"sha256:9717edb54939adba96f55c9f3029cc0f93e4c8ef91f45824d1cb68c0b6704e0c\",\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "3idayR1lhzayQtxpgemwUg4n1YbrAZjxplEuxXre28VLHU5LoMYHsLTzSKk8NRGApvDV7gZfh8l6Ge4vXuxhvQ==",
+            "sigAlg": "ES256",
+            "verificationCode": "B086-5119"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "params": {
+              "amount": 4200,
+              "currency": "USD"
+            },
+            "agentDid": "did:intyga:agent:worker"
+          },
+          "expectedTenantId": "tenant-alpha"
+        }
+      ],
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-agent-requester-did-mismatch",
+      "verifier": "approval",
+      "receipt": {
+        "canonicalPayload": "{\"action\":{\"amount\":null,\"reversibility\":\"irreversible\"},\"actionType\":\"payments.wire\",\"agent\":{\"configDigest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"delegatedBy\":null,\"label\":\"Release agent\"},\"display\":\"Wire USD 4,200\",\"evidence\":null,\"exp\":\"2026-10-10T12:05:00.000Z\",\"nbf\":\"2026-10-10T12:00:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"session\":{\"aggregate\":null,\"id\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"prev\":null,\"seq\":\"1\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-intent-verification\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "5e7o6BiR0Qt3RtR0OUCJntY+jwYlDDERHvzfqrunClQQNgfaiYtoUnKrD2od1eiFU/SwuVg0oOyZoVanckgrpQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "1F61-9B17"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce",
+        "requesterDid": "did:intyga:agent:other",
+        "agentContext": {
+          "action": {
+            "reversibility": "irreversible",
+            "amount": null
+          },
+          "agent": {
+            "label": "Release agent",
+            "configDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "delegatedBy": null
+          },
+          "session": {
+            "id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "seq": "1",
+            "prev": null,
+            "aggregate": null
+          },
+          "nbf": "2026-10-10T12:00:00.000Z"
+        }
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-delegation-valid",
+      "verifier": "delegation",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"delegatedQuorum\":1,\"delegatedTo\":[\"did:intyga:alice\"],\"display\":\"Wire USD 4,200\",\"expiresAt\":\"2026-10-11T12:00:00.000Z\",\"nonce\":\"tenant-delegation-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-delegation\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "ah8dTaFOH2YZS3QiSzktA6xE7aBVW7MbcUVgJm5wwAH6+V57x3fZb4MxdYmfrt7MVz5yRg1Rm0ZCcK0uYzUufg==",
+        "sigAlg": "ES256",
+        "verificationCode": "01AB-50CB"
+      },
+      "expected": {
+        "approverDids": {
+          "did:intyga:alice": [
+            "alice"
+          ]
+        },
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        }
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-authority-valid",
+      "verifier": "authority",
+      "receipt": {
+        "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Payments agent authority",
+        "params": {},
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "gXReUqpkcXE5oUeiq6ULBdbG9UmATs6qIKPHcEt1QVw/a8W+TznKBUg0OEE7gRsaLePg95ptTUVw6u5yF9l/KA==",
+        "sigAlg": "ES256",
+        "verificationCode": "6BDE-B0FD"
+      },
+      "expected": {
+        "approverDids": {
+          "did:intyga:alice": [
+            "alice"
+          ]
+        },
+        "target": "prod-payments",
+        "agentDid": "did:intyga:agent:payments"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-platform-valid",
+      "verifier": "platform",
+      "receipt": {
+        "canonicalPayload": "{\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"hashAlg\":\"SHA-256\",\"nonce\":\"tenant-platform-nonce\",\"payloadHash\":\"ca346d8a20f8b63acfe2a03de9f4e497157a034759cff94443c46b3b9007dc92\",\"rpId\":\"platform.example\",\"signedAt\":\"2026-10-10T12:00:00.000Z\",\"subject\":{\"externalId\":\"cust-42\"},\"tenantId\":\"tenant-alpha\",\"type\":\"div-platform-intent\",\"v\":2}",
+        "payloadHash": "ca346d8a20f8b63acfe2a03de9f4e497157a034759cff94443c46b3b9007dc92",
+        "rpId": "platform.example",
+        "subject": {
+          "externalId": "cust-42"
+        },
+        "nonce": "tenant-platform-nonce",
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "pQECAyYgASFYIAMvp7EzZSobqwuJJIBqlxW7a07P142VN5V/F0igS5mWIlgg48RePSI/KeYrdJL80riaOv0v0AV/QvkdAZnn3LzzhGE=",
+        "signature": "MEQCIDVZCiEm7WKpybQBShSAsC3UVVV5tsFapr87hGV1R6bpAiBWGSUUjkBbI2nlPva6+qubowvdNprlXBgO+RrdWpsCig==",
+        "sigAlg": "WEBAUTHN",
+        "authenticatorData": "sivkLUTZ98fgChDu7ojCbAa9tgXWcAqeNzZLprGoXBUFAAAAAQ==",
+        "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlKbGVIQnBjbVZ6UVhRaU9pSXlNREkzTFRFd0xURXdWREV5T2pBd09qQXdMakF3TUZvaUxDSm9ZWE5vUVd4bklqb2lVMGhCTFRJMU5pSXNJbTV2Ym1ObElqb2lkR1Z1WVc1MExYQnNZWFJtYjNKdExXNXZibU5sSWl3aWNHRjViRzloWkVoaGMyZ2lPaUpqWVRNME5tUTRZVEl3WmpoaU5qTmhZMlpsTW1Fd00yUmxPV1kwWlRRNU56RTFOMkV3TXpRM05UbGpabVk1TkRRME0yTTBObUl6WWprd01EZGtZemt5SWl3aWNuQkpaQ0k2SW5Cc1lYUm1iM0p0TG1WNFlXMXdiR1VpTENKemFXZHVaV1JCZENJNklqSXdNall0TVRBdE1UQlVNVEk2TURBNk1EQXVNREF3V2lJc0luTjFZbXBsWTNRaU9uc2laWGgwWlhKdVlXeEpaQ0k2SW1OMWMzUXRORElpZlN3aWRHVnVZVzUwU1dRaU9pSjBaVzVoYm5RdFlXeHdhR0VpTENKMGVYQmxJam9pWkdsMkxYQnNZWFJtYjNKdExXbHVkR1Z1ZENJc0luWWlPako5Iiwib3JpZ2luIjoiaHR0cHM6Ly9wbGF0Zm9ybS5leGFtcGxlIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ==",
+        "verificationCode": "833B-BE15"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "payloadHash": "ca346d8a20f8b63acfe2a03de9f4e497157a034759cff94443c46b3b9007dc92",
+        "rpId": "platform.example",
+        "nonce": "tenant-platform-nonce",
+        "subjectExternalId": "cust-42"
+      },
+      "expectedTenantId": "tenant-alpha",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z",
+        "expectedOrigin": "https://platform.example"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v2-cross-tenant-delegation-refused",
+      "verifier": "approval-with-delegation",
+      "receipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"challengedAt\":\"2026-10-10T12:00:00.000Z\",\"display\":\"Wire USD 4,200\",\"evidence\":null,\"expiresAt\":\"2026-10-10T12:10:00.000Z\",\"nonce\":\"tenant-vector-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-offline-intent\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "/sWTphZo7TSFxogld9Q5uV3c96r1Edn3MN0ho+emvrtjDgaoUTxx1r//A2Xkak5kNhri3aoNYM3LfZzVHc0EsQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "8BAF-5F30"
+      },
+      "delegationReceipt": {
+        "canonicalPayload": "{\"actionType\":\"payments.wire\",\"delegatedQuorum\":1,\"delegatedTo\":[\"did:intyga:alice\"],\"display\":\"Wire USD 4,200\",\"expiresAt\":\"2026-10-11T12:00:00.000Z\",\"nonce\":\"tenant-delegation-nonce\",\"params\":{\"amount\":4200,\"currency\":\"USD\"},\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-beta\",\"type\":\"div-delegation\",\"v\":2}",
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire USD 4,200",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "requester": {
+          "attestation": null,
+          "did": "did:intyga:service:release"
+        },
+        "signerDid": "did:intyga:alice",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+        "signature": "kLqbUJkOC9trxHwubAJgnTOnDinbaLKYiTia5SvkHa14juufN/1pNUHzj5uqZnyrS8J2AVp+fACDoFToYMWNfQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "98B8-95EC"
+      },
+      "expected": {
+        "approverKeyIds": [
+          "alice"
+        ],
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        },
+        "nonce": "tenant-vector-nonce"
+      },
+      "delegationExpected": {
+        "approverDids": {
+          "did:intyga:alice": [
+            "alice"
+          ]
+        },
+        "target": "prod-payments",
+        "actionType": "payments.wire",
+        "params": {
+          "amount": 4200,
+          "currency": "USD"
+        }
+      },
+      "expectedTenantId": "tenant-alpha",
+      "delegationExpectedTenantId": "tenant-beta",
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z",
+        "allowOffline": true
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v2-cross-tenant-authority-chain-refused",
+      "verifier": "authority-chain",
+      "chain": [
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-alpha\",\"type\":\"div-agent-authority\",\"v\":2}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "VGzr1eRFnckw9jEZM2azDBBhFAaiArQHrE9oR5os7XCDwGAFErtjMr0/xoqj7WwHs0dNLgtZBl8+fbHmMdHl1w==",
+            "sigAlg": "ES256",
+            "verificationCode": "6BDE-B0FD"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "agentDid": "did:intyga:agent:payments"
+          },
+          "expectedTenantId": "tenant-alpha"
+        },
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.refund\"],\"agent\":{\"did\":\"did:intyga:agent:worker\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-child-nonce\",\"parentReceiptHash\":\"sha256:9717edb54939adba96f55c9f3029cc0f93e4c8ef91f45824d1cb68c0b6704e0c\",\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"tenantId\":\"tenant-beta\",\"type\":\"div-agent-authority\",\"v\":2}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "DduiE/mFD2HoC2xTHCXkxOD430GxtukMy4b+khHebC5vRzoANMCPHmLcO91OUv/Tbaui/7PpbGUaH0ecBRSMjQ==",
+            "sigAlg": "ES256",
+            "verificationCode": "6C47-E143"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "agentDid": "did:intyga:agent:worker"
+          },
+          "expectedTenantId": "tenant-beta"
+        }
+      ],
+      "action": {
+        "tenantId": "tenant-alpha",
+        "target": "prod-payments",
+        "actionType": "payments.refund.issue",
+        "agentDid": "did:intyga:agent:worker",
+        "delegatedBy": "sha256:0ca9f4463832d120094689a5b058ae055def51b44de7e97bdbcfbd2002445182"
+      },
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    },
+    {
+      "name": "tenant-v1-authority-chain-archival-valid-without-tenant-expectation",
+      "verifier": "authority-chain",
+      "chain": [
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"type\":\"div-agent-authority\",\"v\":1}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "D/Go5kWrYNNgvGek55/3NDoMRK//1p5+nJF1cpyAxeCI4CThmR4G0iJQux3OCD1kHs6lnEeZL/wndcmlTKa5QA==",
+            "sigAlg": "ES256",
+            "verificationCode": "805D-ED79"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "params": {
+              "amount": 4200,
+              "currency": "USD"
+            },
+            "agentDid": "did:intyga:agent:payments"
+          }
+        },
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.refund\"],\"agent\":{\"did\":\"did:intyga:agent:worker\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-child-v1-nonce\",\"parentReceiptHash\":\"sha256:1a7a191c76f194e97fe21b2db09983cf31a43e9da106b8d47a34cee0f6ec3e94\",\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"type\":\"div-agent-authority\",\"v\":1}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "2MxpIy6LEhi4c8HHetpzNxAPL9LDYYtAIEeyzRcwNTgEK+hqa7Kl9fE00WM6G0P7N8deg3szaHWBhhi39Xmb3Q==",
+            "sigAlg": "ES256",
+            "verificationCode": "CD2A-6230"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "params": {
+              "amount": 4200,
+              "currency": "USD"
+            },
+            "agentDid": "did:intyga:agent:worker"
+          }
+        }
+      ],
+      "action": {
+        "target": "prod-payments",
+        "actionType": "payments.refund.issue",
+        "agentDid": "did:intyga:agent:worker",
+        "delegatedBy": "sha256:5df416a8266fae62feac3791dbb2d4f550a51a090f8fff1ed93528a565e4a431"
+      },
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": true
+    },
+    {
+      "name": "tenant-v1-authority-chain-refused-when-tenant-is-expected",
+      "verifier": "authority-chain",
+      "chain": [
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.\"],\"agent\":{\"did\":\"did:intyga:agent:payments\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-nonce\",\"parentReceiptHash\":null,\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"type\":\"div-agent-authority\",\"v\":1}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "D/Go5kWrYNNgvGek55/3NDoMRK//1p5+nJF1cpyAxeCI4CThmR4G0iJQux3OCD1kHs6lnEeZL/wndcmlTKa5QA==",
+            "sigAlg": "ES256",
+            "verificationCode": "805D-ED79"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "params": {
+              "amount": 4200,
+              "currency": "USD"
+            },
+            "agentDid": "did:intyga:agent:payments"
+          },
+          "expectedTenantId": "tenant-alpha"
+        },
+        {
+          "receipt": {
+            "canonicalPayload": "{\"actionPatterns\":[\"payments.refund\"],\"agent\":{\"did\":\"did:intyga:agent:worker\"},\"display\":\"Payments agent authority\",\"expiresAt\":\"2027-10-10T12:00:00.000Z\",\"nonce\":\"tenant-authority-child-v1-nonce\",\"parentReceiptHash\":\"sha256:1a7a191c76f194e97fe21b2db09983cf31a43e9da106b8d47a34cee0f6ec3e94\",\"requester\":{\"attestation\":null,\"did\":\"did:intyga:service:release\"},\"requirement\":{\"allowedAaguids\":[],\"requesterCannotApprove\":false,\"requireHardwareKey\":false,\"requiredApprovals\":1,\"signerClass\":\"human\"},\"sealedAt\":\"2026-10-10T12:00:00.000Z\",\"target\":\"prod-payments\",\"type\":\"div-agent-authority\",\"v\":1}",
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "actionDescription": "Payments agent authority",
+            "params": {},
+            "requester": {
+              "attestation": null,
+              "did": "did:intyga:service:release"
+            },
+            "signerDid": "did:intyga:alice",
+            "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAy+nsTNlKhurC4kkgGqXFbtrTs/XjZU3lX8XSKBLmZbjxF49Ij8p5it0kvzSuJo6/S/QBX9C+R0BmefcvPOEYQ==",
+            "signature": "2MxpIy6LEhi4c8HHetpzNxAPL9LDYYtAIEeyzRcwNTgEK+hqa7Kl9fE00WM6G0P7N8deg3szaHWBhhi39Xmb3Q==",
+            "sigAlg": "ES256",
+            "verificationCode": "CD2A-6230"
+          },
+          "expected": {
+            "approverDids": {
+              "did:intyga:alice": [
+                "alice"
+              ]
+            },
+            "target": "prod-payments",
+            "actionType": "payments.wire",
+            "params": {
+              "amount": 4200,
+              "currency": "USD"
+            },
+            "agentDid": "did:intyga:agent:worker"
+          },
+          "expectedTenantId": "tenant-alpha"
+        }
+      ],
+      "action": {
+        "tenantId": "tenant-alpha",
+        "target": "prod-payments",
+        "actionType": "payments.refund.issue",
+        "agentDid": "did:intyga:agent:worker",
+        "delegatedBy": "sha256:5df416a8266fae62feac3791dbb2d4f550a51a090f8fff1ed93528a565e4a431"
+      },
+      "options": {
+        "asOf": "2026-10-10T12:00:00.000Z"
+      },
+      "ok": false
+    }
+  ],
+  "invalidBuilderTenantIds": [
+    null,
+    ""
+  ]
+}

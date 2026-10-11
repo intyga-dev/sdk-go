@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -9,6 +10,24 @@ import (
 
 // CanonicalAgentAuthorityPayload reproduces the DIV §5b signed bytes.
 func CanonicalAgentAuthorityPayload(target string, actionPatterns []string, display, agentDID string, requester RequesterIdentity, requirement ApprovalRequirement, nonce, sealedAt, expiresAt string, parentReceiptHash ...string) (string, error) {
+	parent := ""
+	if len(parentReceiptHash) > 0 {
+		parent = parentReceiptHash[0]
+	}
+	return canonicalAgentAuthorityPayload(target, actionPatterns, display, agentDID, requester, requirement, nonce, sealedAt, expiresAt, parent, "")
+}
+
+// CanonicalAgentAuthorityPayloadWithTenant builds a tenant-bound DIV v2 authority. The tenant ID
+// and parent hash are explicit, separate arguments so a caller cannot accidentally swap the existing
+// optional parent argument for a tenant. Pass an empty parentReceiptHash for a root authority.
+func CanonicalAgentAuthorityPayloadWithTenant(target string, actionPatterns []string, display, agentDID string, requester RequesterIdentity, requirement ApprovalRequirement, nonce, sealedAt, expiresAt, parentReceiptHash, tenantID string) (string, error) {
+	if tenantID == "" {
+		return "", fmt.Errorf("tenantID must be a non-empty opaque string")
+	}
+	return canonicalAgentAuthorityPayload(target, actionPatterns, display, agentDID, requester, requirement, nonce, sealedAt, expiresAt, parentReceiptHash, tenantID)
+}
+
+func canonicalAgentAuthorityPayload(target string, actionPatterns []string, display, agentDID string, requester RequesterIdentity, requirement ApprovalRequirement, nonce, sealedAt, expiresAt, parentReceiptHash, tenantID string) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	patterns := append([]string(nil), actionPatterns...)
 	sort.Slice(patterns, func(i, j int) bool { return utf16Less(patterns[i], patterns[j]) })
@@ -16,21 +35,32 @@ func CanonicalAgentAuthorityPayload(target string, actionPatterns []string, disp
 		patterns = []string{}
 	}
 	var parent interface{}
-	if len(parentReceiptHash) > 0 && parentReceiptHash[0] != "" {
-		parent = parentReceiptHash[0]
+	if parentReceiptHash != "" {
+		parent = parentReceiptHash
 	}
-	return StableStringify(map[string]interface{}{"v": DivVersion, "type": DivAgentAuthorityType, "target": target, "actionPatterns": patterns, "display": display, "agent": map[string]interface{}{"did": agentDID}, "parentReceiptHash": parent, "requester": req, "requirement": rq, "nonce": nonce, "sealedAt": sealedAt, "expiresAt": expiresAt})
+	obj := map[string]interface{}{"type": DivAgentAuthorityType, "target": target, "actionPatterns": patterns, "display": display, "agent": map[string]interface{}{"did": agentDID}, "parentReceiptHash": parent, "requester": req, "requirement": rq, "nonce": nonce, "sealedAt": sealedAt, "expiresAt": expiresAt}
+	if tenantID == "" {
+		obj["v"] = DivVersion
+	} else if err := applyTenantBinding(obj, []string{tenantID}); err != nil {
+		return "", err
+	}
+	return StableStringify(obj)
 }
 
 // CanonicalPlatformIntentPayload reproduces the DIV §5c hash-only signed bytes.
-func CanonicalPlatformIntentPayload(payloadHash, rpID, subjectExternalID, signedAt, expiresAt, nonce string) (string, error) {
-	return StableStringify(map[string]interface{}{"v": DivVersion, "type": DivPlatformIntentType, "hashAlg": "SHA-256", "payloadHash": payloadHash, "rpId": rpID, "subject": map[string]interface{}{"externalId": subjectExternalID}, "signedAt": signedAt, "expiresAt": expiresAt, "nonce": nonce})
+func CanonicalPlatformIntentPayload(payloadHash, rpID, subjectExternalID, signedAt, expiresAt, nonce string, tenantID ...string) (string, error) {
+	obj := map[string]interface{}{"type": DivPlatformIntentType, "hashAlg": "SHA-256", "payloadHash": payloadHash, "rpId": rpID, "subject": map[string]interface{}{"externalId": subjectExternalID}, "signedAt": signedAt, "expiresAt": expiresAt, "nonce": nonce}
+	if err := applyTenantBinding(obj, tenantID); err != nil {
+		return "", err
+	}
+	return StableStringify(obj)
 }
 
 type PlatformReceipt = ApprovalReceipt
 type PlatformReceiptExpectation struct {
 	Approvers                                   ApproverTrustAnchor
 	PayloadHash, RpID, Nonce, SubjectExternalID string
+	TenantID                                    *string
 }
 
 func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpectation, opts VerifyOptions) VerifyResult {
@@ -38,8 +68,12 @@ func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpe
 		return VerifyResult{Reason: why}
 	}
 	var f canonicalFields
-	if json.Unmarshal([]byte(receipt.CanonicalPayload), &f) != nil || f.V == nil || *f.V != DivVersion {
+	if json.Unmarshal([]byte(receipt.CanonicalPayload), &f) != nil {
 		return VerifyResult{Reason: "unsupported DIV payload version"}
+	}
+	tenantID, tenantReason := verifyTenantBinding(f, expected.TenantID)
+	if tenantReason != "" {
+		return VerifyResult{Reason: tenantReason}
 	}
 	if f.Type != DivPlatformIntentType {
 		return VerifyResult{Reason: "payload is not a div-platform-intent"}
@@ -65,7 +99,7 @@ func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpe
 	if expected.SubjectExternalID != "" && expected.SubjectExternalID != f.Subject.ExternalID {
 		return VerifyResult{Reason: "receipt was signed by a different subject"}
 	}
-	recomputed, err := CanonicalPlatformIntentPayload(expected.PayloadHash, expected.RpID, f.Subject.ExternalID, f.SignedAt, f.ExpiresAt, expected.Nonce)
+	recomputed, err := CanonicalPlatformIntentPayload(expected.PayloadHash, expected.RpID, f.Subject.ExternalID, f.SignedAt, f.ExpiresAt, expected.Nonce, tenantArgs(tenantID)...)
 	if err != nil || recomputed != receipt.CanonicalPayload {
 		return VerifyResult{Reason: "payloadHash/rpId do not match what was signed"}
 	}
@@ -140,12 +174,14 @@ func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpe
 type AgentAuthorityExpectation struct {
 	Approvers        ApproverTrustAnchor
 	Target, AgentDID string
+	TenantID         *string
 	// Requirement is STRONGLY RECOMMENDED: YOUR sealing policy for agent authority (DIV §5b.3, §5
 	// step 3d). Nil enforces only the sealers' own stated quorum.
 	Requirement *RequirementFloor
 }
 type VerifiedAgentAuthority struct {
 	AgentDID, Target    string
+	TenantID            string
 	ActionPatterns      []string
 	Nonce               string
 	Signers             []string
@@ -153,13 +189,28 @@ type VerifiedAgentAuthority struct {
 	ParentReceiptHash   string
 }
 
+// AgentAuthorityChainLink is one independently pinned authority receipt and its caller-owned scope.
+type AgentAuthorityChainLink struct {
+	Receipt  ApprovalReceipt
+	Expected AgentAuthorityExpectation
+}
+
+// AgentDelegatedAction is the independently asserted action a verified authority chain must cover.
+type AgentDelegatedAction struct {
+	TenantID, Target, ActionType, AgentDID, DelegatedBy string
+}
+
 func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpectation, opts VerifyOptions) (VerifyResult, *VerifiedAgentAuthority) {
 	if why := canonicalTextProblem(receipt.CanonicalPayload); why != "" {
 		return VerifyResult{Reason: why}, nil
 	}
 	var f canonicalFields
-	if json.Unmarshal([]byte(receipt.CanonicalPayload), &f) != nil || f.V == nil || *f.V != DivVersion {
+	if json.Unmarshal([]byte(receipt.CanonicalPayload), &f) != nil {
 		return VerifyResult{Reason: "unsupported DIV payload version"}, nil
+	}
+	tenantID, tenantReason := verifyTenantBinding(f, expected.TenantID)
+	if tenantReason != "" {
+		return VerifyResult{Reason: tenantReason}, nil
 	}
 	if f.Type != DivAgentAuthorityType {
 		return VerifyResult{Reason: "payload is not a div-agent-authority"}, nil
@@ -211,7 +262,13 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 	if expected.Target == "" || expected.AgentDID == "" {
 		return VerifyResult{Reason: "expected target and agent DID are required"}, nil
 	}
-	recomputed, err := CanonicalAgentAuthorityPayload(expected.Target, f.ActionPatterns, receipt.ActionDescription, expected.AgentDID, *receipt.Requester, *f.Requirement, f.Nonce, f.SealedAt, f.ExpiresAt, parent)
+	var recomputed string
+	var err error
+	if tenantID == "" {
+		recomputed, err = CanonicalAgentAuthorityPayload(expected.Target, f.ActionPatterns, receipt.ActionDescription, expected.AgentDID, *receipt.Requester, *f.Requirement, f.Nonce, f.SealedAt, f.ExpiresAt, parent)
+	} else {
+		recomputed, err = CanonicalAgentAuthorityPayloadWithTenant(expected.Target, f.ActionPatterns, receipt.ActionDescription, expected.AgentDID, *receipt.Requester, *f.Requirement, f.Nonce, f.SealedAt, f.ExpiresAt, parent, tenantID)
+	}
 	if err != nil || recomputed != receipt.CanonicalPayload {
 		return VerifyResult{Reason: "target/agent/actionPatterns do not match what was sealed"}, nil
 	}
@@ -291,6 +348,120 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 		}
 	}
 	sort.Strings(patterns)
-	a := &VerifiedAgentAuthority{expected.AgentDID, expected.Target, patterns, f.Nonce, signers, f.SealedAt, f.ExpiresAt, parent}
+	a := &VerifiedAgentAuthority{
+		AgentDID: expected.AgentDID, Target: expected.Target, TenantID: tenantID,
+		ActionPatterns: patterns, Nonce: f.Nonce, Signers: signers,
+		SealedAt: f.SealedAt, ExpiresAt: f.ExpiresAt, ParentReceiptHash: parent,
+	}
 	return VerifyResult{OK: true, Signers: signers}, a
+}
+
+// AgentReceiptDigest commits to the complete authority proof, including every witness in canonical
+// order. A pending intent without its human signatures therefore cannot be substituted as a parent.
+func AgentReceiptDigest(receipt ApprovalReceipt) (string, error) {
+	witnesses := witnessesOf(receipt)
+	projected := make([]interface{}, 0, len(witnesses))
+	for _, w := range witnesses {
+		fieldOrNil := func(name, value string) interface{} {
+			if w.decoded && (!w.present[name] || w.nulls[name]) {
+				return nil
+			}
+			return value
+		}
+		pointerOrNil := func(value *string) interface{} {
+			if value == nil {
+				return nil
+			}
+			return *value
+		}
+		projected = append(projected, map[string]interface{}{
+			"signerDid": fieldOrNil("signerDid", w.SignerDID), "signerPublicKey": fieldOrNil("signerPublicKey", w.SignerPublicKey),
+			"signature": fieldOrNil("signature", w.Signature), "sigAlg": pointerOrNil(w.SigAlg),
+			"authenticatorData": pointerOrNil(w.AuthenticatorData),
+			"clientDataJSON":    pointerOrNil(w.ClientDataJSON),
+		})
+	}
+	sort.Slice(projected, func(i, j int) bool {
+		left, _ := StableStringify(projected[i])
+		right, _ := StableStringify(projected[j])
+		return utf16Less(left, right)
+	})
+	content, err := StableStringify(map[string]interface{}{
+		"canonicalPayload": receipt.CanonicalPayload,
+		"witnesses":        projected,
+	})
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(append([]byte("intyga-agent-receipt-v1\x00"), []byte(content)...))
+	return fmt.Sprintf("sha256:%x", sum), nil
+}
+
+// VerifyAgentDelegationChain verifies a complete root-to-leaf human-sealed authority chain, including
+// tenant, target, parent hash, lifetime and scope continuity. A chain is governance evidence only.
+func VerifyAgentDelegationChain(chain []AgentAuthorityChainLink, action AgentDelegatedAction, opts VerifyOptions) VerifyResult {
+	if len(chain) < 2 || !agentDigestPattern.MatchString(action.DelegatedBy) {
+		return VerifyResult{Reason: "delegation requires a complete root-to-leaf authority chain"}
+	}
+	var parent *VerifiedAgentAuthority
+	parentHash := ""
+	for index, link := range chain {
+		proof, authority := VerifyAgentAuthority(link.Receipt, link.Expected, opts)
+		if !proof.OK || authority == nil {
+			return VerifyResult{Reason: fmt.Sprintf("authority link %d: %s", index+1, proof.Reason)}
+		}
+		if authority.TenantID != action.TenantID {
+			return VerifyResult{Reason: "authority chain and action belong to different tenants"}
+		}
+		if authority.Target != action.Target {
+			return VerifyResult{Reason: "delegated authority changes target"}
+		}
+		if authority.ParentReceiptHash != parentHash {
+			return VerifyResult{Reason: "delegated authority has a missing or different parent receipt"}
+		}
+		if parent != nil {
+			if authority.TenantID != parent.TenantID {
+				return VerifyResult{Reason: "authority chain crosses tenant boundaries"}
+			}
+			childSealed, e1 := parseSignedTime(authority.SealedAt)
+			parentSealed, e2 := parseSignedTime(parent.SealedAt)
+			childExpires, e3 := parseSignedTime(authority.ExpiresAt)
+			parentExpires, e4 := parseSignedTime(parent.ExpiresAt)
+			if e1 != nil || e2 != nil || e3 != nil || e4 != nil || childSealed.Before(parentSealed) || childExpires.After(parentExpires) {
+				return VerifyResult{Reason: "child authority outlives or predates its parent"}
+			}
+			for _, child := range authority.ActionPatterns {
+				covered := false
+				for _, scope := range parent.ActionPatterns {
+					if scope == "*" || strings.Contains(strings.ToLower(child), strings.ToLower(scope)) {
+						covered = true
+						break
+					}
+				}
+				if !covered {
+					return VerifyResult{Reason: "child authority escalates the parent's action scope"}
+				}
+			}
+		}
+		parent = authority
+		var err error
+		parentHash, err = AgentReceiptDigest(link.Receipt)
+		if err != nil {
+			return VerifyResult{Reason: fmt.Sprintf("authority link %d cannot be digested: %s", index+1, err)}
+		}
+	}
+	if parentHash != action.DelegatedBy || parent == nil || parent.AgentDID != action.AgentDID {
+		return VerifyResult{Reason: "action does not name its delegated agent and leaf authority receipt"}
+	}
+	covered := false
+	for _, pattern := range parent.ActionPatterns {
+		if pattern == "*" || strings.Contains(strings.ToLower(action.ActionType), strings.ToLower(pattern)) {
+			covered = true
+			break
+		}
+	}
+	if !covered {
+		return VerifyResult{Reason: "action falls outside the delegated authority"}
+	}
+	return VerifyResult{OK: true}
 }

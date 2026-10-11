@@ -1,6 +1,9 @@
 package verify
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"encoding/hex"
 	"errors"
 	"regexp"
 	"strconv"
@@ -40,12 +43,21 @@ var errInvalidUTF8 = errors.New("a string is not valid UTF-8 (RFC 8785 / I-JSON 
 // sharedKeyProblem enforces one key, one person (DIV §4.4.6). An identity-associating anchor that
 // maps the SAME key to two DIDs would otherwise let that key's holder count as two approvers, since
 // quorum counts distinct identities. A key already counted for one identity cannot count for another.
-// Keys compare by decoded bytes (padding and base64/base64url spellings of one encoding match; the
-// same key in another encoding, COSE vs SPKI, is not detected). Records the key when it is free.
+// P-256 keys compare by public point, so COSE and SPKI encodings of one credential match. Other
+// encodings compare by decoded bytes. Records the key when it is free.
 func sharedKeyProblem(counted map[string]string, key, identity string) string {
 	fingerprint := key
 	if b, err := decodeBase64Flexible(key); err == nil {
 		fingerprint = string(b)
+		var pub *ecdsa.PublicKey
+		if len(b) > 0 && b[0] == 0x30 {
+			pub, _ = parseSpkiP256(b)
+		} else {
+			pub, _ = parseCoseP256Key(b)
+		}
+		if pub != nil && pub.Curve == elliptic.P256() {
+			fingerprint = hex.EncodeToString(elliptic.Marshal(elliptic.P256(), pub.X, pub.Y))
+		}
 	}
 	if owner, ok := counted[fingerprint]; ok && owner != identity {
 		return "signer " + identity + " verified under a key already counted for " + owner + "; two approver identities sharing one key count once (DIV §4.4.6)"

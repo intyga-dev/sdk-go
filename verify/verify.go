@@ -84,10 +84,11 @@ func validateAgentContext(context map[string]interface{}, exp string, sigAlg *st
 	return ""
 }
 
-// DIV protocol constants (docs/DIV.md v1).
+// DIV protocol constants. v1 remains the historical unbound format; v2 adds tenantId.
 const (
-	DivVersion    = 1
-	DivIntentType = "div-intent-verification"
+	DivVersion            = 1
+	DivTenantBoundVersion = 2
+	DivIntentType         = "div-intent-verification"
 	// DivOfflineIntentType marks an OFFLINE APPROVAL (DIV §5a.2): a normal quorum approval collected
 	// OUT OF BAND at incident time because the gateway is unreachable. The relying party builds the
 	// challenge itself, humans sign it on a disconnected device, and this verifier checks the result.
@@ -321,6 +322,9 @@ type VerifyOptions struct {
 	// approver set and the quorum for this one verification (DIV §5a.6). Only meaningful with
 	// AllowOffline. It narrows rather than widens.
 	Delegation *VerifiedDelegation
+	// AgentAuthorityChain is the complete independently trusted root-to-leaf chain required when an
+	// agent intent names delegatedBy. Each link is verified before scope and tenant continuity checks.
+	AgentAuthorityChain []AgentAuthorityChainLink
 	// AsOf overrides "now" for expiry evaluation. Zero value means time.Now().
 	AsOf time.Time
 	// ClockSkewSeconds is the expiry tolerance. Zero means DefaultClockSkewSeconds.
@@ -361,12 +365,17 @@ func backupFlagsProblem(w ApprovalWitness) string {
 // Expected contains expected context when verifying a receipt. Target and Nonce are asserted from
 // the relying party's own state — never read from the receipt (DIV Target Isolation + replay binding).
 type Expected struct {
+	// TenantID is independently trusted context. Nil preserves archival v1 verification; a non-nil
+	// empty value is invalid, and a non-empty value requires a matching v2 payload.
+	TenantID   *string                `json:"tenantId,omitempty"`
 	Target     string                 `json:"target"`
 	Nonce      string                 `json:"nonce"`
 	ActionType string                 `json:"actionType"`
 	Params     map[string]interface{} `json:"params"`
 	// RP-asserted live agent context; never populated from the receipt itself.
 	AgentContext map[string]interface{} `json:"agentContext,omitempty"`
+	// RequesterDID is the independently asserted executing agent identity for delegated agent intents.
+	RequesterDID string `json:"requesterDid,omitempty"`
 	// Approvers is REQUIRED. Verification uses a key YOU resolve, never receipt.SignerPublicKey:
 	// a receipt checked against its own embedded key proves only internal consistency, and per the
 	// DIV threat model anyone able to hand you a receipt could have minted that keypair.
@@ -378,6 +387,10 @@ type Expected struct {
 	// be at least as strict (DIV §5a.5). VerifyDelegation applies it to the sealing requirement.
 	Requirement *RequirementFloor `json:"requirement,omitempty"`
 }
+
+// TenantID returns caller-owned tenant context for verifier expectations. A pointer is required so
+// the API can distinguish omitted (legacy-v1 compatibility) from explicitly empty (invalid).
+func tenantIDPtr(value string) *string { return &value }
 
 // ApproverTrustAnchor is the set of approver keys the relying party trusts, resolved from its OWN
 // key-management policy. Supply either PublicKeys (a direct base64 SPKI/COSE allowlist) or DIDs plus
@@ -524,6 +537,35 @@ type ApprovalWitness struct {
 	SigAlg            *string `json:"sigAlg,omitempty"`
 	AuthenticatorData *string `json:"authenticatorData,omitempty"`
 	ClientDataJSON    *string `json:"clientDataJSON,omitempty"`
+	decoded           bool
+	present           map[string]bool
+	nulls             map[string]bool
+}
+
+// UnmarshalJSON remembers absent witness fields separately from explicit empty strings. Agent
+// receipt digests project absent values as null but preserve empty strings, matching the TS/Python
+// implementations; the distinction is otherwise lost by Go's zero-value string fields.
+func (w *ApprovalWitness) UnmarshalJSON(data []byte) error {
+	type witnessFields ApprovalWitness
+	var decoded witnessFields
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*w = ApprovalWitness(decoded)
+	w.decoded = true
+	w.present = make(map[string]bool, len(fields))
+	w.nulls = make(map[string]bool)
+	for key := range fields {
+		w.present[key] = true
+		if strings.TrimSpace(string(fields[key])) == "null" {
+			w.nulls[key] = true
+		}
+	}
+	return nil
 }
 
 // VerifyResult represents the verification outcome.
@@ -692,7 +734,8 @@ func portableInt(val int64) (string, error) {
 	return strconv.FormatInt(val, 10), nil
 }
 
-// CanonicalIntentPayload builds a byte-identical DIV Intent Payload (docs/DIV.md v1). It builds the
+// CanonicalIntentPayload builds a byte-identical DIV Intent Payload. Omitting tenantID preserves v1;
+// one explicit tenantID emits tenant-bound v2. It builds the
 // full object and serializes it with StableStringify (strict RFC 8785 JCS — every key sorted). Do NOT
 // hand-template key order; the sort is the contract. Errors only when params carry a value
 // StableStringify refuses (a non-portable number).
@@ -705,10 +748,10 @@ func CanonicalIntentPayload(
 	requirement ApprovalRequirement,
 	nonce string,
 	expiresAt string,
+	tenantID ...string,
 ) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	obj := map[string]interface{}{
-		"v":          DivVersion,
 		"type":       DivIntentType,
 		"target":     target,
 		"actionType": actionType,
@@ -723,21 +766,43 @@ func CanonicalIntentPayload(
 		"nonce":       nonce,
 		"expiresAt":   expiresAt,
 	}
+	if err := applyTenantBinding(obj, tenantID); err != nil {
+		return "", err
+	}
 	return StableStringify(obj)
 }
 
-// CanonicalAgentIntentPayload is the DIV v1 agent variant. All agent fields enter the same JCS
+// CanonicalAgentIntentPayload is the DIV agent variant. All agent fields enter the same JCS
 // object as the ordinary intent and are therefore covered by the WebAuthn challenge.
 func CanonicalAgentIntentPayload(target, actionType, display string, params map[string]interface{},
 	requester RequesterIdentity, requirement ApprovalRequirement, nonce, exp string,
-	context map[string]interface{}) (string, error) {
+	context map[string]interface{}, tenantID ...string) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
-	return StableStringify(map[string]interface{}{
-		"v": DivVersion, "type": DivIntentType, "target": target, "actionType": actionType,
+	obj := map[string]interface{}{
+		"type": DivIntentType, "target": target, "actionType": actionType,
 		"display": display, "params": params, "evidence": nil, "requester": req,
 		"requirement": rq, "nonce": nonce, "action": context["action"],
 		"agent": context["agent"], "session": context["session"], "nbf": context["nbf"], "exp": exp,
-	})
+	}
+	if err := applyTenantBinding(obj, tenantID); err != nil {
+		return "", err
+	}
+	return StableStringify(obj)
+}
+
+// applyTenantBinding preserves the historical v1 bytes when no tenant is supplied and emits v2
+// only for one explicit, non-empty tenant. Tenant IDs are opaque and are never trimmed or normalized.
+func applyTenantBinding(obj map[string]interface{}, tenantID []string) error {
+	if len(tenantID) == 0 {
+		obj["v"] = DivVersion
+		return nil
+	}
+	if len(tenantID) != 1 || tenantID[0] == "" {
+		return errors.New("tenantID must be one non-empty opaque string")
+	}
+	obj["v"] = DivTenantBoundVersion
+	obj["tenantId"] = tenantID[0]
+	return nil
 }
 
 // canonicalCommon builds the requester + requirement projection shared by all three builders. One
@@ -794,10 +859,10 @@ func CanonicalOfflineIntentPayload(
 	nonce string,
 	challengedAt string,
 	expiresAt string,
+	tenantID ...string,
 ) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
-	return StableStringify(map[string]interface{}{
-		"v":          DivVersion,
+	obj := map[string]interface{}{
 		"type":       DivOfflineIntentType,
 		"target":     target,
 		"actionType": actionType,
@@ -812,7 +877,11 @@ func CanonicalOfflineIntentPayload(
 		"nonce":        nonce,
 		"challengedAt": challengedAt,
 		"expiresAt":    expiresAt,
-	})
+	}
+	if err := applyTenantBinding(obj, tenantID); err != nil {
+		return "", err
+	}
+	return StableStringify(obj)
 }
 
 // CanonicalDelegationPayload builds a byte-identical DELEGATION payload (DIV §5a.5) — a signed
@@ -833,6 +902,7 @@ func CanonicalDelegationPayload(
 	nonce string,
 	sealedAt string,
 	expiresAt string,
+	tenantID ...string,
 ) (string, error) {
 	req, rq := canonicalCommon(requester, requirement)
 	delegates := append([]string(nil), delegatedTo...)
@@ -845,8 +915,7 @@ func CanonicalDelegationPayload(
 	if delegates == nil {
 		delegates = []string{}
 	}
-	return StableStringify(map[string]interface{}{
-		"v":               DivVersion,
+	obj := map[string]interface{}{
 		"type":            DivDelegationType,
 		"target":          target,
 		"actionType":      actionType,
@@ -859,13 +928,18 @@ func CanonicalDelegationPayload(
 		"nonce":           nonce,
 		"sealedAt":        sealedAt,
 		"expiresAt":       expiresAt,
-	})
+	}
+	if err := applyTenantBinding(obj, tenantID); err != nil {
+		return "", err
+	}
+	return StableStringify(obj)
 }
 
 // canonicalFields is just enough of the DIV Intent Payload to gate version/type and read the fields
 // the relying party takes from the receipt (nonce, expiresAt) rather than asserting itself.
 type canonicalFields struct {
 	V                 *int            `json:"v"`
+	TenantID          json.RawMessage `json:"tenantId"`
 	Type              string          `json:"type"`
 	Nonce             string          `json:"nonce"`
 	ExpiresAt         string          `json:"expiresAt"`
@@ -894,6 +968,10 @@ type canonicalFields struct {
 // VerifiedDelegation is a delegation whose own signature, quorum and window have been checked by
 // VerifyDelegation. It is an INPUT to a later approval check, never a substitute for one.
 type VerifiedDelegation struct {
+	// TenantID is the independently verified v2 tenant. It is empty only for a legacy v1 delegation.
+	TenantID string
+	// RequesterDID is frozen by the signed seal and must match any offline approval using it.
+	RequesterDID string
 	// DelegatedTo are the identities permitted to approve at incident time, deduplicated.
 	DelegatedTo []string
 	// DelegatedQuorum is how many distinct members of DelegatedTo must sign.
@@ -906,6 +984,36 @@ type VerifiedDelegation struct {
 	Nonce     string
 	Signers   []string
 	ExpiresAt string
+}
+
+// verifyTenantBinding validates the version/tenant contract against caller-owned context. Raw JSON
+// preserves the security-relevant distinction between an absent tenantId and one explicitly set to
+// null. It returns the tenant to use when reconstructing v2 bytes; it never trusts receipt data as
+// the caller's expectation.
+func verifyTenantBinding(fields canonicalFields, expectedTenantID *string) (string, string) {
+	if fields.V == nil || (*fields.V != DivVersion && *fields.V != DivTenantBoundVersion) {
+		return "", "unsupported DIV payload version"
+	}
+	if *fields.V == DivVersion {
+		if fields.TenantID != nil {
+			return "", "legacy DIV v1 payload must not carry tenantId"
+		}
+		if expectedTenantID != nil {
+			return "", "legacy DIV v1 payload is not tenant-bound and cannot satisfy an expected tenant"
+		}
+		return "", ""
+	}
+	var tenantID string
+	if fields.TenantID == nil || json.Unmarshal(fields.TenantID, &tenantID) != nil || tenantID == "" {
+		return "", "DIV v2 payload requires a non-empty tenantId"
+	}
+	if expectedTenantID == nil || *expectedTenantID == "" {
+		return "", "DIV v2 verification requires an independently supplied expected tenant"
+	}
+	if tenantID != *expectedTenantID {
+		return "", "payload tenantId does not match the expected tenant"
+	}
+	return *expectedTenantID, ""
 }
 
 // VerifyApprovalReceipt verifies an ApprovalReceipt offline without external dependencies.
@@ -925,8 +1033,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if err := json.Unmarshal([]byte(receipt.CanonicalPayload), &fields); err != nil {
 		return VerifyResult{OK: false, Reason: "canonicalPayload is not valid JSON"}
 	}
-	if fields.V == nil || *fields.V != DivVersion {
-		return VerifyResult{OK: false, Reason: "unsupported DIV payload version"}
+	tenantID, tenantReason := verifyTenantBinding(fields, expected.TenantID)
+	if tenantReason != "" {
+		return VerifyResult{OK: false, Reason: tenantReason}
 	}
 	// A DELEGATION authorizes nothing (DIV §5a.5). Refused here unconditionally — there is deliberately
 	// NO option that would let one through, because a delegation that could authorize its own action
@@ -963,6 +1072,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if receipt.Requester == nil {
 		return VerifyResult{OK: false, Reason: "receipt missing requester"}
 	}
+	if expected.RequesterDID != "" && receipt.Requester.DID != expected.RequesterDID {
+		return VerifyResult{Reason: "approval was requested by a different principal"}
+	}
 	agentIntent := fields.Agent != nil
 	if agentIntent && expected.AgentContext == nil {
 		return VerifyResult{Reason: "agent receipt requires independently asserted PEP context"}
@@ -979,7 +1091,17 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			return VerifyResult{Reason: "invalid independently asserted agent context: " + problem}
 		}
 		if agent, ok := expected.AgentContext["agent"].(map[string]interface{}); ok && agent["delegatedBy"] != nil {
-			return VerifyResult{Reason: "delegated agent receipt requires a trusted root-to-leaf authority chain"}
+			delegatedBy, _ := agent["delegatedBy"].(string)
+			if expected.RequesterDID == "" || len(opts.AgentAuthorityChain) == 0 {
+				return VerifyResult{Reason: "delegated agent receipt requires a trusted root-to-leaf authority chain"}
+			}
+			authority := VerifyAgentDelegationChain(opts.AgentAuthorityChain, AgentDelegatedAction{
+				TenantID: tenantID, Target: expected.Target, ActionType: expected.ActionType,
+				AgentDID: expected.RequesterDID, DelegatedBy: delegatedBy,
+			}, opts)
+			if !authority.OK {
+				return VerifyResult{Reason: authority.Reason}
+			}
 		}
 		nbf, _ := time.Parse("2006-01-02T15:04:05.000Z", expected.AgentContext["nbf"].(string))
 		now, skew := evaluationTime(opts)
@@ -1074,6 +1196,12 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	delegatedQuorum := 0
 	if opts.Delegation != nil {
 		d := opts.Delegation
+		if d.TenantID != tenantID {
+			return VerifyResult{OK: false, Reason: "delegation and approval belong to different tenants or DIV versions"}
+		}
+		if receipt.Requester == nil || receipt.Requester.DID != d.RequesterDID {
+			return VerifyResult{OK: false, Reason: "offline approval was requested by a different principal than the delegation"}
+		}
 		expiry, err := parseSignedTime(d.ExpiresAt)
 		if err != nil {
 			return VerifyResult{OK: false, Reason: "delegation expiresAt is not a valid RFC3339 timestamp"}
@@ -1128,11 +1256,12 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			fields.Nonce,
 			fields.ChallengedAt,
 			fields.ExpiresAt,
+			tenantArgs(tenantID)...,
 		)
 	} else if agentIntent {
 		recomputed, recomputeErr = CanonicalAgentIntentPayload(expected.Target, expected.ActionType,
 			receipt.ActionDescription, expected.Params, *receipt.Requester, *fields.Requirement,
-			fields.Nonce, fields.ExpiresAt, expected.AgentContext)
+			fields.Nonce, fields.ExpiresAt, expected.AgentContext, tenantArgs(tenantID)...)
 	} else {
 		recomputed, recomputeErr = CanonicalIntentPayload(
 			expected.Target,
@@ -1143,6 +1272,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			*fields.Requirement,
 			fields.Nonce,
 			fields.ExpiresAt,
+			tenantArgs(tenantID)...,
 		)
 	}
 	if recomputeErr != nil {
@@ -1308,8 +1438,9 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	if err := json.Unmarshal([]byte(receipt.CanonicalPayload), &fields); err != nil {
 		return VerifyResult{OK: false, Reason: "canonicalPayload is not valid JSON"}, nil
 	}
-	if fields.V == nil || *fields.V != DivVersion {
-		return VerifyResult{OK: false, Reason: "unsupported DIV payload version"}, nil
+	tenantID, tenantReason := verifyTenantBinding(fields, expected.TenantID)
+	if tenantReason != "" {
+		return VerifyResult{OK: false, Reason: tenantReason}, nil
 	}
 	if fields.Type != DivDelegationType {
 		return VerifyResult{OK: false, Reason: "payload is not a div-delegation"}, nil
@@ -1372,6 +1503,9 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	if receipt.Requester == nil {
 		return VerifyResult{OK: false, Reason: "delegation missing requester"}, nil
 	}
+	if expected.RequesterDID != "" && receipt.Requester.DID != expected.RequesterDID {
+		return VerifyResult{OK: false, Reason: "approval was requested by a different principal"}, nil
+	}
 	if fields.Requirement == nil {
 		return VerifyResult{OK: false, Reason: "delegation payload is missing the signed approval requirement"}, nil
 	}
@@ -1400,6 +1534,7 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		fields.Nonce,
 		fields.SealedAt,
 		fields.ExpiresAt,
+		tenantArgs(tenantID)...,
 	)
 	if recomputeErr != nil {
 		// A non-portable number in expected.Params, not tampering — the mismatch reason below would
@@ -1488,6 +1623,8 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	}
 	sort.Strings(signers)
 	return VerifyResult{OK: true}, &VerifiedDelegation{
+		TenantID:     tenantID,
+		RequesterDID: receipt.Requester.DID,
 		// The DEDUPLICATED set: this is what gets enforced against witness DIDs later, and a duplicate
 		// entry must not create the illusion of a larger eligible pool.
 		DelegatedTo:     distinct,
@@ -1499,6 +1636,13 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		Signers:         signers,
 		ExpiresAt:       fields.ExpiresAt,
 	}
+}
+
+func tenantArgs(tenantID string) []string {
+	if tenantID == "" {
+		return nil
+	}
+	return []string{tenantID}
 }
 
 // foldFailures renders at most maxReportedFailures per-witness reasons as a parenthesized detail

@@ -1,4 +1,4 @@
-module github.com/intyga-dev/sdk-go
+module github.com/intyga-dev/sdk-go/v2
 
 go 1.21
 

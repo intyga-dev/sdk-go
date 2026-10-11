@@ -5,6 +5,24 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 
 ## [Unreleased]
 
+## [2.0.0]
+
+- Bind delegation verification to the independently expected requester; a workload cannot reuse
+  another workload's otherwise valid delegation.
+
+- **Breaking: tenant-bound DIV v2 approvals.** Requests and offline approvals carry the tenant
+  established by authenticated credentials or a verified trust bundle. Receipt verification requires
+  an independently trusted tenant; a receipt cannot choose its own verification context.
+- Trust bundles require a nonempty signed `tenantId`; trust-anchor files may pin the expected tenant.
+  Offline-intent anchors require an explicit eligible-DID restriction, so delegate keys cannot
+  broaden a selected rule's approver set. Ordinary anchors keep their existing behavior.
+- Includes the matched 2.0.0 verifier and shared tenant-binding and offline-approval vectors.
+  Historical v1 receipts remain verifiable without a tenant expectation; new tenant-bound execution
+  refuses them. Publish the full matched set and upgrade consumers before the gateway cutover.
+- **Go import migration:** use `github.com/intyga-dev/sdk-go/v2` (bundled verifier:
+  `github.com/intyga-dev/sdk-go/v2/verify`). `Expected.TenantID` is a pointer so an explicitly
+  empty expectation fails closed.
+
 ## [1.2.0]
 
 - **Offline approval (DIV §5a), the SDK half**, to the contract in `docs/OFFLINE-APPROVAL-SDK.md`.

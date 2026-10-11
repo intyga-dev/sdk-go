@@ -4,14 +4,14 @@
 
 Gate any high-risk backend action behind a real human approval. The primitive is uniform: **request a challenge → a human approves with a passkey or security key → poll until resolved** — the same client works for scripts, pipelines, and AI agents.
 
-This package **bundles the offline verifier** (`github.com/intyga-dev/sdk-go/verify`), so you can request an approval *and* independently verify the receipt without adding a second dependency.
+This package **bundles the offline verifier** (`github.com/intyga-dev/sdk-go/v2/verify`), so you can request an approval *and* independently verify the receipt without adding a second dependency.
 
 > The standalone verifier also ships on its own as [`verify-go`](https://github.com/intyga-dev/verify-go).
 
 ## Install
 
 ```sh
-go get github.com/intyga-dev/sdk-go
+go get github.com/intyga-dev/sdk-go/v2
 ```
 
 ## Require a human approval before a high-risk action
@@ -20,8 +20,8 @@ go get github.com/intyga-dev/sdk-go
 import (
 	"context"
 
-	intyga "github.com/intyga-dev/sdk-go"
-	verify "github.com/intyga-dev/sdk-go/verify"
+	intyga "github.com/intyga-dev/sdk-go/v2"
+	verify "github.com/intyga-dev/sdk-go/v2/verify"
 )
 
 client, err := intyga.NewClient(intyga.ClientOptions{
@@ -53,7 +53,13 @@ if err != nil || r.Status != intyga.StatusApproved {
 // Re-verify locally before executing. This is not optional under DIV §5: the relying party checks
 // the signature itself, against a key IT resolved. Approvers is required for exactly that reason —
 // a receipt checked against its own embedded key proves only that the receipt is self-consistent.
+tenantID := os.Getenv("INTYGA_TENANT_ID")
+if tenantID == "" {
+	log.Fatal("INTYGA_TENANT_ID must name the expected workspace")
+}
 res := verify.VerifyApprovalReceipt(*r.Receipt, verify.Expected{
+	// Independently configured tenant identity. DIV v2 refuses to infer this from the receipt.
+	TenantID:   &tenantID,
 	Target:     "prod-db-cluster-01",
 	Nonce:      r.Nonce,
 	ActionType: "wipe_production",
@@ -120,6 +126,9 @@ and the on-disk layout are a shared format, pinned by the conformance vectors in
   `RequirementFor`, `ParseTrustAnchorFile`, `CreateOfflineChallenge`, `DecodeChallengeEnvelope`,
   `EncodeSignatureEnvelope`/`DecodeSignatureEnvelope`, `SignChallengeEnvelope` (the approver's side),
   `AssembleOfflineReceipt`, `FileRedemptionStore`, `PendingApprovals`/`ClearPendingApproval`.
+
+`ApproverAnchor` requires a non-nil eligible DID slice for `BundleAnchorOfflineIntent`; nil returns
+an empty anchor. `BundleAnchorOrdinary` retains nil as an intentional unrestricted anchor.
 
 ## Also available in
 - TypeScript — [`@intyga/sdk`](https://github.com/intyga-dev/sdk)

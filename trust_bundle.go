@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	verify "github.com/intyga-dev/sdk-go/verify"
+	verify "github.com/intyga-dev/sdk-go/v2/verify"
 )
 
 // DivTrustBundleType is the bundle's `type` discriminator, inside the signed JWS payload.
@@ -86,12 +86,19 @@ type TrustBundle struct {
 	V         int              `json:"v"`
 	Type      string           `json:"type"`
 	TenantID  string           `json:"tenantId"`
+	WebAuthn  *BundleWebAuthn  `json:"webauthn,omitempty"`
 	Approvers []BundleApprover `json:"approvers"`
 	Policy    []BundlePolicy   `json:"policy"`
 	// UnmatchedActionPolicy is "DENY" or "BASELINE".
 	UnmatchedActionPolicy string `json:"unmatchedActionPolicy"`
 	IssuedAt              string `json:"issuedAt"`
 	ExpiresAt             string `json:"expiresAt"`
+}
+
+// BundleWebAuthn carries expectations pinned by the bundle signature, never by the receipt.
+type BundleWebAuthn struct {
+	Origin string `json:"origin"`
+	RpID   string `json:"rpId"`
 }
 
 // TrustBundleFiles is what SaveTrustBundle writes: the bundle JWS and the key it must be verified
@@ -248,14 +255,16 @@ func LoadTrustBundle(dir string, asOf time.Time) (*TrustBundle, error) {
 // Flattening every key into one allowlist would let one approver holding a software key and two
 // passkeys satisfy a 3-of-N quorum alone.
 //
-// limitToDids narrows the eligible set; nil means every approver in the bundle (an empty, non-nil
-// slice narrows to nobody). purpose BundleAnchorOrdinary never admits an offline signing key; pass
-// BundleAnchorOfflineIntent only when the receipt being verified is a div-offline-intent — a bare
-// offline key that could seal a delegation would hand its holder the authority the delegation
-// transfers.
+// limitToDids narrows the eligible set; nil means every approver for BundleAnchorOrdinary (an empty,
+// non-nil slice narrows to nobody). BundleAnchorOfflineIntent requires an explicit DID restriction;
+// nil returns an empty anchor so every offline key in a tenant bundle cannot become eligible for one
+// action merely because its caller omitted the action's approver set.
 func ApproverAnchor(bundle *TrustBundle, limitToDids []string, purpose BundleAnchorPurpose) verify.ApproverTrustAnchor {
 	var order []string
 	byDID := map[string][]string{}
+	if purpose == BundleAnchorOfflineIntent && limitToDids == nil {
+		return verify.ApproverTrustAnchor{DIDs: order, ResolveKeys: func(string) []string { return nil }}
+	}
 	if bundle != nil {
 		for _, a := range bundle.Approvers {
 			if limitToDids != nil && !containsString(limitToDids, a.DID) {
@@ -358,6 +367,16 @@ func trustBundleFromJSON(obj map[string]interface{}) (*TrustBundle, error) {
 	if v, ok := obj["v"].(float64); obj["type"] != DivTrustBundleType || !ok || v != 1 {
 		return nil, errors.New("unsupported trust bundle type or version")
 	}
+	var webauthn *BundleWebAuthn
+	if raw, present := obj["webauthn"]; present {
+		pins, _ := raw.(map[string]interface{})
+		origin, _ := pins["origin"].(string)
+		rpID, _ := pins["rpId"].(string)
+		if origin == "" || rpID == "" {
+			return nil, errors.New("invalid trust bundle WebAuthn expectations")
+		}
+		webauthn = &BundleWebAuthn{Origin: origin, RpID: rpID}
+	}
 	unmatched, _ := obj["unmatchedActionPolicy"].(string)
 	if unmatched != "DENY" && unmatched != "BASELINE" {
 		return nil, errors.New("trust bundle has no valid unmatched-action decision")
@@ -401,8 +420,8 @@ func trustBundleFromJSON(obj map[string]interface{}) (*TrustBundle, error) {
 		policy = append(policy, p)
 	}
 	tenantID, ok := obj["tenantId"].(string)
-	if _, present := obj["tenantId"]; present && !ok {
-		return nil, errors.New("trust bundle tenantId is not a string")
+	if !ok || tenantID == "" {
+		return nil, errors.New("trust bundle tenantId must be a non-empty string")
 	}
 	issuedAt, _ := obj["issuedAt"].(string)
 	expiresAt, _ := obj["expiresAt"].(string)
@@ -410,6 +429,7 @@ func trustBundleFromJSON(obj map[string]interface{}) (*TrustBundle, error) {
 		V:                     1,
 		Type:                  DivTrustBundleType,
 		TenantID:              tenantID,
+		WebAuthn:              webauthn,
 		Approvers:             approvers,
 		Policy:                policy,
 		UnmatchedActionPolicy: unmatched,

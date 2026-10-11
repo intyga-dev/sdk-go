@@ -16,16 +16,18 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
-	verify "github.com/intyga-dev/sdk-go/verify"
+	verify "github.com/intyga-dev/sdk-go/v2/verify"
 )
 
 const offlineVectorsPath = "vectors/offline-approval-vectors.json"
@@ -56,8 +58,10 @@ type offlineVectors struct {
 		GatewayJWK json.RawMessage `json:"gatewayJwk"`
 	} `json:"trustBundle"`
 	BundleAnchor []struct {
+		Name        string              `json:"name"`
 		Purpose     BundleAnchorPurpose `json:"purpose"`
 		LimitToDids []string            `json:"limitToDids"`
+		OK          bool                `json:"ok"`
 		Expect      struct {
 			DIDs []string            `json:"dids"`
 			Keys map[string][]string `json:"keys"`
@@ -81,18 +85,20 @@ type offlineVectors struct {
 	CreateChallenge []struct {
 		Name  string `json:"name"`
 		Input struct {
-			Target        string                   `json:"target"`
-			ActionType    string                   `json:"actionType"`
-			Display       string                   `json:"display"`
-			Params        map[string]interface{}   `json:"params"`
-			WindowMinutes *float64                 `json:"windowMinutes"`
-			Nonce         *string                  `json:"nonce"`
-			Requester     verify.RequesterIdentity `json:"requester"`
-			AsOf          string                   `json:"asOf"`
-			Delegation    *struct {
+			Target         string                   `json:"target"`
+			ActionType     string                   `json:"actionType"`
+			Display        string                   `json:"display"`
+			Params         map[string]interface{}   `json:"params"`
+			BundleTenantID json.RawMessage          `json:"bundleTenantId"`
+			WindowMinutes  *float64                 `json:"windowMinutes"`
+			Nonce          *string                  `json:"nonce"`
+			Requester      verify.RequesterIdentity `json:"requester"`
+			AsOf           string                   `json:"asOf"`
+			Delegation     *struct {
 				DelegatedTo     []string `json:"delegatedTo"`
 				DelegatedQuorum int      `json:"delegatedQuorum"`
 				Nonce           string   `json:"nonce"`
+				TenantID        string   `json:"tenantId"`
 			} `json:"delegation"`
 		} `json:"input"`
 		OK     bool                       `json:"ok"`
@@ -148,10 +154,14 @@ type offlineVectors struct {
 			Key      string  `json:"key"`
 			ClaimDid string  `json:"claimDid"`
 		} `json:"signers"`
-		Delegation string `json:"delegation"`
-		AsOf       string `json:"asOf"`
-		OK         bool   `json:"ok"`
-		Expect     struct {
+		Delegation          string            `json:"delegation"`
+		RequesterDID        string            `json:"requesterDid"`
+		DelegationArtifacts []json.RawMessage `json:"delegationArtifacts"`
+		BufferFailure       bool              `json:"bufferFailure"`
+		BundleJWS           string            `json:"bundleJws"`
+		AsOf                string            `json:"asOf"`
+		OK                  bool              `json:"ok"`
+		Expect              struct {
 			Signers       []string `json:"signers"`
 			ViaDelegation *string  `json:"viaDelegation"`
 		} `json:"expect"`
@@ -317,7 +327,19 @@ func TestOfflineVectors(t *testing.T) {
 		for i, c := range V.BundleAnchor {
 			cases++
 			anchor := ApproverAnchor(bundle, c.LimitToDids, c.Purpose)
-			if !reflect.DeepEqual(anchor.DIDs, c.Expect.DIDs) {
+			if !c.OK {
+				if len(anchor.DIDs) != 0 {
+					t.Errorf("%s: refused anchor admitted %v", c.Name, anchor.DIDs)
+				}
+				for _, approver := range bundle.Approvers {
+					if keys := anchor.ResolveKeys(approver.DID); len(keys) != 0 {
+						t.Errorf("%s: refused anchor resolved %s to %v", c.Name, approver.DID, keys)
+					}
+				}
+				continue
+			}
+			if len(anchor.DIDs) != len(c.Expect.DIDs) ||
+				(len(anchor.DIDs) > 0 && !reflect.DeepEqual(anchor.DIDs, c.Expect.DIDs)) {
 				t.Errorf("case %d: dids %v want %v", i, anchor.DIDs, c.Expect.DIDs)
 			}
 			for did, keys := range c.Expect.Keys {
@@ -373,6 +395,9 @@ func TestOfflineVectors(t *testing.T) {
 				"dids":    anchor.DIDs,
 				"keys":    keys,
 			}
+			if parsed.TenantID != "" {
+				got["tenantId"] = parsed.TenantID
+			}
 			if !sameJSON(t, got, c.Expect) {
 				encoded, _ := json.Marshal(got)
 				t.Errorf("%s: got %s want %s", c.Name, encoded, c.Expect)
@@ -385,6 +410,14 @@ func TestOfflineVectors(t *testing.T) {
 		for _, c := range V.CreateChallenge {
 			cases++
 			in := c.Input
+			caseBundle := *bundle
+			if in.BundleTenantID != nil {
+				if string(in.BundleTenantID) == "null" {
+					caseBundle.TenantID = ""
+				} else if err := json.Unmarshal(in.BundleTenantID, &caseBundle.TenantID); err != nil {
+					t.Fatalf("%s: invalid bundleTenantId vector input: %v", c.Name, err)
+				}
+			}
 			// WindowMinutes is an int in Go, so a fractional window (2.5) cannot reach
 			// CreateOfflineChallenge at all: it is refused where the JSON number becomes an int.
 			window, err := wholeMinutes(in.WindowMinutes)
@@ -397,7 +430,7 @@ func TestOfflineVectors(t *testing.T) {
 				continue
 			}
 			input := OfflineChallengeInput{
-				Bundle:        bundle,
+				Bundle:        &caseBundle,
 				Target:        in.Target,
 				ActionType:    in.ActionType,
 				Display:       in.Display,
@@ -409,6 +442,7 @@ func TestOfflineVectors(t *testing.T) {
 			}
 			if in.Delegation != nil {
 				input.Delegation = &verify.VerifiedDelegation{
+					TenantID:        in.Delegation.TenantID,
 					DelegatedTo:     in.Delegation.DelegatedTo,
 					DelegatedQuorum: in.Delegation.DelegatedQuorum,
 					Nonce:           in.Delegation.Nonce,
@@ -531,21 +565,44 @@ func TestOfflineVectors(t *testing.T) {
 			cases++
 			c := c
 			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, "trust-bundle.jws"), []byte(V.BundleJWS), 0o600); err != nil {
+			bundleJWS := V.BundleJWS
+			if c.BundleJWS != "" {
+				bundleJWS = c.BundleJWS
+			}
+			if err := os.WriteFile(filepath.Join(dir, "trust-bundle.jws"), []byte(bundleJWS), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			if err := os.WriteFile(filepath.Join(dir, "gateway-key.jwk.json"), V.GatewayJWK, 0o600); err != nil {
 				t.Fatal(err)
 			}
 			delegationDir := ""
-			if c.Delegation != "" {
+			if c.Delegation != "" || len(c.DelegationArtifacts) > 0 {
 				delegationDir = filepath.Join(dir, "delegations")
 				if err := os.Mkdir(delegationDir, 0o700); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(filepath.Join(delegationDir, c.Delegation+".json"), V.Delegations[c.Delegation], 0o600); err != nil {
+				for i, artifact := range c.DelegationArtifacts {
+					name := fmt.Sprintf("00-invalid-%02d.json", i)
+					if err := os.WriteFile(filepath.Join(delegationDir, name), artifact, 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if c.Delegation != "" {
+					if err := os.WriteFile(filepath.Join(delegationDir, c.Delegation+".json"), V.Delegations[c.Delegation], 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			bufferDir := ""
+			if c.BufferFailure {
+				bufferDir = filepath.Join(dir, "not-a-directory")
+				if err := os.WriteFile(bufferDir, []byte("buffer failure"), 0o600); err != nil {
 					t.Fatal(err)
 				}
+			}
+			requesterDID := c.RequesterDID
+			if requesterDID == "" {
+				requesterDID = V.RequesterDID
 			}
 			r, err := UseOfflineApproval(context.Background(), OfflineAction{
 				Target:     c.Action.Target,
@@ -554,8 +611,9 @@ func TestOfflineVectors(t *testing.T) {
 				Params:     c.Action.Params,
 			}, OfflineApprovalOptions{
 				BundleDir:     dir,
+				BufferDir:     bufferDir,
 				DelegationDir: delegationDir,
-				RequesterDID:  V.RequesterDID,
+				RequesterDID:  requesterDID,
 				AsOf:          mustTime(t, c.AsOf),
 				Warn:          func(string) {},
 				CollectSignatures: func(_ context.Context, ch *OfflineChallenge) ([]string, error) {
@@ -584,6 +642,15 @@ func TestOfflineVectors(t *testing.T) {
 			if (err == nil) != c.OK {
 				t.Errorf("%s: ok=%v want %v (%v)", c.Name, err == nil, c.OK, err)
 				continue
+			}
+			if c.BufferFailure {
+				if err == nil || !strings.Contains(err.Error(), "could not buffer") {
+					t.Fatalf("expected persistence refusal: %v", err)
+				}
+				entries, readErr := os.ReadDir(filepath.Join(dir, ".redeemed"))
+				if readErr != nil || len(entries) != 0 {
+					t.Fatalf("redeemed after persistence failure: %v %v", entries, readErr)
+				}
 			}
 			if err != nil {
 				t.Logf("%s: refused as expected: %v", c.Name, err)

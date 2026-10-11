@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	verify "github.com/intyga-dev/sdk-go/verify"
+	verify "github.com/intyga-dev/sdk-go/v2/verify"
 )
 
 // offlineFixture is a bundle directory holding the vectors' signed bundle, plus options that collect
@@ -258,7 +258,7 @@ func TestUseOfflineApprovalBuffersThenRedeems(t *testing.T) {
 	// The buffered receipt still verifies offline, exactly as the gateway will re-verify it.
 	bundle, _ := LoadTrustBundle(f.dir, f.asOf)
 	check := verify.VerifyApprovalReceipt(p.Receipt, verify.Expected{
-		Target: p.Target, ActionType: p.ActionType, Params: f.action().Params, Nonce: p.Nonce,
+		TenantID: &bundle.TenantID, Target: p.Target, ActionType: p.ActionType, Params: f.action().Params, Nonce: p.Nonce,
 		Approvers: ApproverAnchor(bundle, []string{"did:intyga:alice", "did:intyga:bob"}, BundleAnchorOfflineIntent),
 	}, verify.VerifyOptions{AllowOffline: true, AsOf: f.asOf})
 	if !check.OK {
@@ -266,8 +266,8 @@ func TestUseOfflineApprovalBuffersThenRedeems(t *testing.T) {
 	}
 	// And never as an ordinary approval.
 	if check := verify.VerifyApprovalReceipt(p.Receipt, verify.Expected{
-		Target: p.Target, ActionType: p.ActionType, Params: f.action().Params, Nonce: p.Nonce,
-		Approvers: ApproverAnchor(bundle, nil, BundleAnchorOfflineIntent),
+		TenantID: &bundle.TenantID, Target: p.Target, ActionType: p.ActionType, Params: f.action().Params, Nonce: p.Nonce,
+		Approvers: ApproverAnchor(bundle, []string{"did:intyga:alice", "did:intyga:bob"}, BundleAnchorOfflineIntent),
 	}, verify.VerifyOptions{AsOf: f.asOf}); check.OK {
 		t.Error("an offline receipt verified without AllowOffline")
 	}
@@ -564,8 +564,8 @@ func TestSignChallengeEnvelopeKeyForms(t *testing.T) {
 		}
 		receipt := AssembleOfflineReceipt(ch, []verify.ApprovalWitness{w})
 		res := verify.VerifyApprovalReceipt(receipt, verify.Expected{
-			Target: "t", ActionType: "db.restart", Params: map[string]interface{}{}, Nonce: ch.Nonce,
-			Approvers: ApproverAnchor(bundle, nil, BundleAnchorOfflineIntent),
+			TenantID: &bundle.TenantID, Target: "t", ActionType: "db.restart", Params: map[string]interface{}{}, Nonce: ch.Nonce,
+			Approvers: ApproverAnchor(bundle, []string{"did:intyga:alice"}, BundleAnchorOfflineIntent),
 		}, verify.VerifyOptions{AllowOffline: true, AsOf: f.asOf})
 		// db.restart is 2-of-N, so one signature is short — but it must be counted as alice's.
 		if res.OK || !strings.Contains(res.Reason, "1 of 2") {

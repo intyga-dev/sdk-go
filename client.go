@@ -2,7 +2,7 @@
 // approves with a passkey or security key → poll until resolved. It works for AI agents, humans, and
 // any backend service; the only difference is which API key/token you hold.
 //
-// Offline receipt verification lives in the standalone github.com/intyga-dev/sdk-go/verify package;
+// Offline receipt verification lives in the standalone github.com/intyga-dev/sdk-go/v2/verify package;
 // this client returns its ApprovalReceipt type so a relying party can re-verify what was signed.
 package intyga
 
@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	verify "github.com/intyga-dev/sdk-go/verify"
+	verify "github.com/intyga-dev/sdk-go/v2/verify"
 )
 
 // ApprovalReceipt is re-exported from verify-go so callers can verify offline without a second import.
