@@ -620,3 +620,86 @@ func TestNewClientRefusesNonHTTPSGateway(t *testing.T) {
 		t.Errorf("trailing slashes kept: %q", c.opts.GatewayURL)
 	}
 }
+
+func TestExecutionEvidenceRoutes(t *testing.T) {
+	var paths []string
+	var bodies []map[string]interface{}
+	mux := http.NewServeMux()
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		paths = append(paths, r.URL.EscapedPath())
+		bodies = append(bodies, body)
+		writeJSON(w, map[string]interface{}{"ok": true, "counted": true, "verdict": "confirmed"})
+	}
+	mux.HandleFunc("/authorize/n%201/dispatched", handler)
+	mux.HandleFunc("/authorize/n%201/evidence", handler)
+	mux.HandleFunc("/", handler)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	if _, err := client.ReportDispatched(context.Background(), "n 1", 600); err != nil {
+		t.Fatalf("ReportDispatched: %v", err)
+	}
+	out, err := client.SubmitEvidence(context.Background(), "n 1", "{}", "c2ln")
+	if err != nil || !out.OK || !out.Counted {
+		t.Fatalf("SubmitEvidence: %+v %v", out, err)
+	}
+	if len(paths) != 2 || paths[0] != "/authorize/n%201/dispatched" || paths[1] != "/authorize/n%201/evidence" {
+		t.Fatalf("unexpected paths %v", paths)
+	}
+	if bodies[0]["evidenceWithinSeconds"] != float64(600) || bodies[1]["statement"] != "{}" || bodies[1]["signature"] != "c2ln" {
+		t.Fatalf("unexpected bodies %v", bodies)
+	}
+}
+
+// The status view carries, per statement, its own sample time and counter and whether it was late —
+// the shape executionViewByNonce in apps/gateway/src/execution.ts returns.
+func TestStatusDecodesExecutionEvidence(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/authorize/n-1", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]interface{}{
+			"status": "CONSUMED",
+			"execution": map[string]interface{}{
+				"status":           "contradicted",
+				"dispatchedAt":     "2026-10-05T14:00:00.000Z",
+				"evidenceDeadline": "2026-10-05T14:10:00.000Z",
+				"evidence": []interface{}{
+					map[string]interface{}{"seq": "41", "verdict": "confirmed", "source": "did:example:relay-7", "recordedAt": "2026-10-05T14:02:12.000Z", "sampledAt": "2026-10-05T14:02:09.500Z", "sequence": 418, "late": false},
+					map[string]interface{}{"seq": "57", "verdict": "contradicted", "source": "did:example:relay-7", "recordedAt": "2026-10-05T14:20:01.000Z", "sampledAt": "2026-10-05T14:19:58.000Z", "sequence": 9007199254740991, "late": true},
+					// A statement the gateway could not read: no sample time, no counter, never late.
+					map[string]interface{}{"seq": "58", "verdict": "confirmed", "source": nil, "recordedAt": "2026-10-05T14:21:00.000Z", "sampledAt": nil, "sequence": nil, "late": false},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	client := mustClient(t, ClientOptions{GatewayURL: srv.URL, Token: "t"})
+	result, err := client.Status(context.Background(), "n-1")
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	ex := result.Execution
+	if ex == nil || ex.Status != "contradicted" || ex.EvidenceDeadline != "2026-10-05T14:10:00.000Z" || len(ex.Evidence) != 3 {
+		t.Fatalf("unexpected execution state %+v", ex)
+	}
+	inWindow, late, unreadable := ex.Evidence[0], ex.Evidence[1], ex.Evidence[2]
+	if inWindow.Seq != "41" || inWindow.Source == nil || *inWindow.Source != "did:example:relay-7" ||
+		inWindow.SampledAt == nil || *inWindow.SampledAt != "2026-10-05T14:02:09.500Z" ||
+		inWindow.Sequence == nil || *inWindow.Sequence != 418 || inWindow.Late {
+		t.Fatalf("in-window statement: %+v", inWindow)
+	}
+	if late.Verdict != "contradicted" || !late.Late || late.Sequence == nil || *late.Sequence != 9007199254740991 {
+		t.Fatalf("late contradiction: %+v", late)
+	}
+	if unreadable.Source != nil || unreadable.SampledAt != nil || unreadable.Sequence != nil || unreadable.Late {
+		t.Fatalf("unreadable statement: %+v", unreadable)
+	}
+	// A gateway that predates the fields decodes as unreadable rather than failing.
+	var old ExecutionState
+	if err := json.Unmarshal([]byte(`{"status":"pending","dispatchedAt":"a","evidenceDeadline":"b","evidence":[{"seq":"1","verdict":"confirmed","source":"s","recordedAt":"c"}]}`), &old); err != nil ||
+		old.Evidence[0].SampledAt != nil || old.Evidence[0].Sequence != nil || old.Evidence[0].Late {
+		t.Fatalf("older status view: %+v %v", old, err)
+	}
+}

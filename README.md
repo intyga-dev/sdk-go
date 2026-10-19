@@ -90,16 +90,78 @@ This example uses a **human or SERVICE key**. An `AI_AGENT` key must supply
 session state before executing (DIV §4.3.6). The configuration digest is an RP assertion, not
 proof of agent integrity.
 
+## Guard a tool callback
+
+`NewApprovalGuard` packages the approval, local verification and single-use consumption steps into
+a callable wrapper. Register **the returned callback** with your tool framework. It requires your
+own approver trust and passes a detached JSON object to the tool, so changes to the original map
+while approval is pending cannot change the operation that executes.
+
+```go
+guarded, err := intyga.NewApprovalGuard(client, intyga.ApprovalGuardOptions{
+	Target: "prod-db-cluster-01", ActionType: "db.restart",
+	Approvers: verify.ApproverTrustAnchor{PublicKeys: trustedApproverKeys()},
+	Requirement: &verify.RequirementFloor{RequiredApprovals: 1},
+	ExpectedOrigin: os.Getenv("INTYGA_WEBAUTHN_ORIGIN"),
+	ExpectedRpID: os.Getenv("INTYGA_WEBAUTHN_RP_ID"),
+	TenantID: os.Getenv("INTYGA_TENANT_ID"), // Independently trusted workspace; never read from the receipt.
+	ReportDispatch: 600, // Optional DEWP evidence window; zero disables reporting.
+	OnDispatchError: func(nonce string, err error) {
+		queueDispatchRetry(nonce, 600) // Persist a retry of the report, not the tool.
+	},
+}, func(ctx context.Context, args map[string]interface{}) (string, error) {
+	return restartDatabase(ctx, args["cluster"].(string))
+})
+if err != nil { return err }
+result, err := guarded(context.Background(), map[string]interface{}{"cluster": "prod-db-1"})
+```
+
+Supply `trustedApproverKeys`, `queueDispatchRetry` and `restartDatabase` from your application.
+Use the DID trust form for a quorum of distinct people. Pass `TenantID` from your trust anchor or
+other independently trusted configuration; DIV v2 receipts are refused without it, and it is never
+inferred from the receipt. The callback must use `args`, not captured
+mutable inputs; numbers in the detached object are `float64`, following JSON/JavaScript semantics.
+Missing/invalid receipts, binding changes, failed verification or `consume.ok != true` prevent the
+callback. It returns the tool's original result/error; optional dispatch reporting runs even after a
+tool error or panic, and reporting/diagnostic failures cannot replace that outcome. Reporting is
+best effort, not a durable outbox; a process exit can prevent it. The report window is 10–86400
+seconds, and a failed report is retried with its nonce without executing the tool again.
+
+This ordinary approval guard uses a human or `SERVICE` key. It does not implement the `AI_AGENT`
+v1 runtime, session and budget gate; that integration remains in the TypeScript MCP adapter.
+
 ## API
 
 - `NewClient(ClientOptions)` — construct a client (no I/O). It returns an error unless `GatewayURL`
   is `https://`; plain `http://` is accepted only for a loopback host (`localhost`, `127.0.0.0/8`,
   `::1`) for local development, and the default transport never follows redirects.
 - `RequireApproval(ctx, description, opts)` — create a challenge and block until resolved.
+- `NewApprovalGuard(client, options, tool)` — create a verified, consuming callable tool guard.
 - `Authorize` / `Status` / `Consume` — the individual steps (create, poll, execution-time re-bind).
   `Authorize` requires `Target`; `Consume` takes `(ctx, nonce, target, actionType, params)` and must be
   given the same target the approval was bound to.
 - `Verify(ctx, documentHash)` — public witness lookup.
+- `ReportDispatched(ctx, nonce, evidenceWithinSeconds)` / `SubmitEvidence(ctx, nonce, statement, signature)`
+  — DEWP 1.1 §4.7 execution evidence: report that the consumed action was sent, then relay a statement
+  an evidence source signed. The service relays; it never signs one.
+- `BuildExecutionEvidence(ExecutionEvidenceInput)` / `SignExecutionEvidence(statement, privateKey)` —
+  the evidence source's side: the canonical statement bytes for one observation (`Sequence` is the
+  source's gapless per-log counter; `SampledAt` is when the measurement was taken and defaults to
+  `ObservedAt`, which defaults to now) and the ES256 signature `SubmitEvidence` relays. The builder
+  refuses anything a verifier would.
+- `Status(...).Execution` — the gateway's fold of that evidence for a consumed approval. Each
+  `Evidence[]` record carries the statement's own `SampledAt` and `Sequence` (nil when the gateway
+  could not read the statement) and `Late`: sampled after the evidence window closed, so witnessed but
+  never counted. A late `contradicted` is the `challenge.execution_late_contradiction` alert — route it
+  to escalation, not investigation.
+- `ParseEvidenceSourcesFile(data)` / `EvidencePolicyFromFile(file)` — load the relying party's
+  `intyga-evidence-sources` trust file (docs/API.md §2e) into verify-go's
+  `ExecutionEvidencePolicy`. It is a separate file from the approver trust anchor, because an approver
+  is not an independent observer of the action they approved. A key is a base64 SPKI string or
+  `{key, notBefore?, notAfter?}`, a validity interval the verifier checks at the record's anchored
+  time; any other member in a key object (a misspelt `notafter`) refuses the whole file, so it can
+  never read as "no bound". Decoding into `EvidenceSourcesFile` with `json.Unmarshal` runs the same
+  checks. It passes every case of the shared `executionEvidence.trustFiles` vectors.
 - Tokens exchanged from `ClientID`/`ClientSecret` are re-exchanged automatically shortly before the
   gateway's `expires_in` (and once more on a 401), so a long-lived client needs no refresh logic of
   its own; an explicit `Token` is used as-is.

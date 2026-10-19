@@ -1049,6 +1049,11 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if fields.Type == DivPlatformIntentType {
 		return VerifyResult{OK: false, Reason: "this is a platform hash-only intent (DIV §5c) — verify it with VerifyPlatformReceipt"}
 	}
+	// A DEWP execution-evidence statement (DEWP §4.7) is a source's observation AFTER execution, not
+	// an approval. Refused with its own reason, like the other non-approval kinds.
+	if fields.Type == DewpExecutionEvidenceType {
+		return VerifyResult{OK: false, Reason: "this is a DEWP execution-evidence statement, which approves nothing — evaluate it with EvaluateExecutionEvidence over an evidence bundle"}
+	}
 	offline := fields.Type == DivOfflineIntentType
 	if !offline && fields.Type != DivIntentType {
 		return VerifyResult{OK: false, Reason: "payload is not a div-intent-verification"}

@@ -195,6 +195,62 @@ type ApprovalResult struct {
 	Nonce string `json:"nonce,omitempty"`
 	// Context frozen at issuance, retained independently of the returned receipt.
 	AgentContext map[string]interface{} `json:"agentContext,omitempty"`
+	// Execution is DEWP §4.7 evidence for a CONSUMED approval whose dispatch was reported.
+	Execution *ExecutionState `json:"execution,omitempty"`
+}
+
+// ExecutionState is DEWP §4.7 execution evidence as the gateway folds it. confirmed/contradicted come
+// only from statements signed by a REGISTERED evidence source; unconfirmed means the window closed
+// without one. It reports what a source observed — not proof of what physically happened.
+type ExecutionState struct {
+	// Status is "pending", "confirmed", "contradicted" or "unconfirmed".
+	Status           string `json:"status"`
+	DispatchedAt     string `json:"dispatchedAt"`
+	EvidenceDeadline string `json:"evidenceDeadline"`
+	// Evidence is every witnessed statement for the approval, in ledger order — counted or not.
+	Evidence []ExecutionEvidenceRecord `json:"evidence"`
+}
+
+// ExecutionEvidenceRecord is one witnessed statement (an EXECUTION_CONFIRMED or
+// EXECUTION_CONTRADICTED Evidence Record) as the gateway summarizes it.
+type ExecutionEvidenceRecord struct {
+	// Seq is the record's ledger sequence number.
+	Seq string `json:"seq"`
+	// Verdict is "confirmed" or "contradicted".
+	Verdict string `json:"verdict"`
+	// Source is the record's signerDid: the registered evidence source that signed the statement.
+	Source *string `json:"source"`
+	// RecordedAt is when the gateway witnessed the statement, not when it was sampled.
+	RecordedAt string `json:"recordedAt"`
+	// SampledAt is the statement's own sample time (DEWP §4.7.2 rule 11), which the evidence window is
+	// evaluated on; nil when the gateway could not read the statement.
+	SampledAt *string `json:"sampledAt"`
+	// Sequence is the source's own per-log counter (DEWP §4.7.2 rule 12); nil when the gateway could
+	// not read the statement.
+	Sequence *int64 `json:"sequence"`
+	// Late is true when the statement was sampled after the evidence window closed: witnessed, never
+	// counted. A late "contradicted" is the challenge.execution_late_contradiction alert — route it to
+	// escalation, not investigation; it never changes Status. False when the statement could not be
+	// read.
+	Late bool `json:"late"`
+}
+
+// DispatchResult is the answer to ReportDispatched.
+type DispatchResult struct {
+	OK               bool    `json:"ok"`
+	DispatchedAt     string  `json:"dispatchedAt"`
+	EvidenceDeadline string  `json:"evidenceDeadline"`
+	AuditSeq         *string `json:"auditSeq"`
+}
+
+// EvidenceResult is the answer to SubmitEvidence. Counted is false for an observation outside the
+// evidence window: witnessed, but not counted.
+type EvidenceResult struct {
+	OK              bool    `json:"ok"`
+	Verdict         string  `json:"verdict"`
+	Counted         bool    `json:"counted"`
+	ExecutionStatus *string `json:"executionStatus"`
+	AuditSeq        *string `json:"auditSeq"`
 }
 
 // VerifyResult is the public witness lookup response.
@@ -336,6 +392,25 @@ func (c *Client) Consume(ctx context.Context, nonce, target, actionType string, 
 		return out, err
 	}
 	return out, nil
+}
+
+// ReportDispatched (DEWP §4.7) reports that the consumed action was sent to its target and how long
+// an evidence source has to confirm it. Call after Consume succeeded. Idempotent for the same window;
+// never affects the approval.
+func (c *Client) ReportDispatched(ctx context.Context, nonce string, evidenceWithinSeconds int) (DispatchResult, error) {
+	var out DispatchResult
+	body := map[string]interface{}{"evidenceWithinSeconds": evidenceWithinSeconds}
+	err := c.doJSON(ctx, http.MethodPost, "/authorize/"+url.PathEscape(nonce)+"/dispatched", body, &out)
+	return out, err
+}
+
+// SubmitEvidence (DEWP §4.7) relays a statement an evidence source signed. The gateway accepts it
+// only from a source the tenant registered; this service relays, it cannot author one.
+func (c *Client) SubmitEvidence(ctx context.Context, nonce, statement, signature string) (EvidenceResult, error) {
+	var out EvidenceResult
+	body := map[string]interface{}{"statement": statement, "signature": signature}
+	err := c.doJSON(ctx, http.MethodPost, "/authorize/"+url.PathEscape(nonce)+"/evidence", body, &out)
+	return out, err
 }
 
 // Status polls a challenge's current state (non-blocking).

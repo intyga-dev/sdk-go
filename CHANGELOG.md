@@ -5,6 +5,30 @@ All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The f
 
 ## [Unreleased]
 
+## [2.1.0]
+
+- `Client.ReportDispatched` / `SubmitEvidence` (DEWP 1.1 §4.7) and `ApprovalResult.Execution`.
+- `BuildExecutionEvidence` / `SignExecutionEvidence` — the evidence source's side of DEWP 1.1 §4.7,
+  after the pre-publication review: the statement carries `SampledAt` (defaults to `ObservedAt`) and a
+  required per-log `Sequence`; the builder refuses what a verifier would, and the signer takes the key
+  forms `SignChallengeOptions` accepts (P-256 only). Mirrors `buildExecutionEvidence` /
+  `signExecutionEvidence` in `@intyga/sdk`.
+- `ParseEvidenceSourcesFile` / `EvidencePolicyFromFile` — the `intyga-evidence-sources` trust file
+  (docs/API.md §2e) loaded into verify-go's `ExecutionEvidencePolicy`, separate from the approver trust
+  anchor. A key may be `{key, notBefore?, notAfter?}`, a validity interval the verifier checks at the
+  record's anchored time; an entry with any other member (a misspelt bound) refuses the file, so it can
+  never read as "no bound", and `json.Unmarshal` into `EvidenceSourcesFile` runs the same checks.
+  Passes every case of the shared `executionEvidence.trustFiles` vectors. Mirrors
+  `parseEvidenceSourcesFile` / `evidencePolicyFromFile` in `@intyga/sdk`.
+- `ExecutionState.Evidence` is now `[]ExecutionEvidenceRecord`, which adds `SampledAt` and `Sequence`
+  (nil when the gateway could not read the statement) and `Late` (sampled after the evidence window
+  closed: witnessed, never counted; a late `contradicted` is the
+  `challenge.execution_late_contradiction` alert).
+- `NewApprovalGuard` for framework-neutral JSON tool callbacks: detached arguments, caller-trusted
+  local receipt verification and checked single-use consumption before execution. Optional DEWP
+  dispatch reporting preserves the tool's result/error and exposes the nonce for report retries.
+  `TenantID` is the independently trusted tenant DIV v2 receipts require, as in the Python guard.
+
 ## [2.0.0]
 
 - Bind delegation verification to the independently expected requester; a workload cannot reuse

@@ -23,6 +23,18 @@ func uncheckedSignature() AuditSignatureCheck {
 	return AuditSignatureCheck{"not_checked", "Content not verified or unavailable.", false}
 }
 func VerifyAuditSignature(c AuditLeaf, p *AuditSignaturePolicy) AuditSignatureCheck {
+	return VerifyAuditSignatureWithEvidence(c, p, nil, nil)
+}
+
+// VerifyAuditSignatureWithEvidence is VerifyAuditSignature with evidence-source trust. An Evidence
+// Record (DEWP §4.7) is checked against evidence-source trust only, and only once the caller supplies
+// any trust: an approver key never vouches for a statement and a source key never vouches for an
+// approval (§4.7.5). With no trust at all, §4.6.1's embedded-key check is unchanged.
+//
+// anchoredTimeMs is the record's anchored time (DEWP §4.7.5), for an evidence-source key that carries
+// a validity interval: nil means no counting anchor covers it, and such a key establishes nothing.
+// The bundle verifiers pass the same value to the §4.7.3 statement check, so the two reports agree.
+func VerifyAuditSignatureWithEvidence(c AuditLeaf, p *AuditSignaturePolicy, e *ExecutionEvidencePolicy, anchoredTimeMs *int64) AuditSignatureCheck {
 	result := func(status, reason string) AuditSignatureCheck { return AuditSignatureCheck{status, reason, false} }
 	if (c.SigAlg == nil || *c.SigAlg == "") && ((c.Signature != nil && *c.Signature != "") || (c.SignedPayload != nil && *c.SignedPayload != "") || (c.SignerPublicKey != nil && *c.SignerPublicKey != "")) {
 		return result("not_checked", "Signature algorithm is missing.")
@@ -36,6 +48,15 @@ func VerifyAuditSignature(c AuditLeaf, p *AuditSignaturePolicy) AuditSignatureCh
 	}
 	if c.Signature == nil || *c.Signature == "" || c.SignedPayload == nil || *c.SignedPayload == "" {
 		return result("not_checked", "Signature or signed payload is missing.")
+	}
+	if (p != nil || e != nil) && IsExecutionEvidenceLeaf(c) {
+		if alg != "ES256" {
+			return result("not_checked", "Evidence statements are signed with ES256 only.")
+		}
+		if e == nil {
+			return result("not_checked", "No caller-trusted key for this evidence source.")
+		}
+		return VerifyEvidenceSignature(c, e, anchoredTimeMs)
 	}
 	if p == nil && alg == "ES256" {
 		if c.SignerPublicKey == nil || *c.SignerPublicKey == "" {

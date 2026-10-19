@@ -1,6 +1,6 @@
 {
   "generated": "2026-09-20T12:27:45.230Z",
-  "note": "Cross-language wire-contract vectors. Consumed by ALL SIX ports: packages/mcp-schemas and packages/verify tests (TS), verify-go, verify-rust, verify-java, and sdk-python. `agentAuthorityPayloads` (DIV §5b) and `platformIntentPayloads` (DIV §5c) were TS-only and are NOT any more — all six build both payloads and all six consume both sections. What remains deliberately TS-only is two sections a relying party's offline verifier has no consumer for: `denialPayloads` (§4.3.3 denial witnesses are DEWP ledger entries checked by leaf recomputation, not Proof Envelopes) and `documentPayloads` (see its own note). Separately, every port's ORDINARY APPROVAL verifier still refuses the `div-agent-authority` and `div-platform-intent` types — those artifacts have their own entry points — and the `receipts` cases agent-authority-refused-by-approval-verifier and platform-intent-refused-by-approval-verifier are where that is pinned. Regenerate ONLY on a deliberate format change.",
+  "note": "Cross-language wire-contract vectors. Consumed by ALL SIX ports: packages/mcp-schemas and packages/verify tests (TS), verify-go, verify-rust, verify-java, and sdk-python. `agentAuthorityPayloads` (DIV §5b) and `platformIntentPayloads` (DIV §5c) were TS-only and are NOT any more — all six build both payloads and all six consume both sections. What remains deliberately TS-only is two sections a relying party's offline verifier has no consumer for: `denialPayloads` (§4.3.3 denial witnesses are DEWP ledger entries checked by leaf recomputation, not Proof Envelopes) and `documentPayloads` (see its own note). Separately, every port's ORDINARY APPROVAL verifier still refuses the `div-agent-authority` and `div-platform-intent` types — those artifacts have their own entry points — and the `receipts` cases agent-authority-refused-by-approval-verifier and platform-intent-refused-by-approval-verifier are where that is pinned; execution-evidence-refused-by-approval-verifier pins the same for the DEWP §4.7 `dewp-execution-evidence` statement. Regenerate ONLY on a deliberate format change.",
   "stableStringify": [
     {
       "name": "null",
@@ -1175,6 +1175,40 @@
         "signature": "kCI1vGI2Q+9EHM9mF537gcW7VyMfeKbmb7APOZ/A+4NysC8VPRl59nvvYqIqybFRpUapp6dH8mbLDK0FUmVhrw==",
         "sigAlg": "ES256",
         "verificationCode": "8744-3D78"
+      },
+      "expectOk": false
+    },
+    {
+      "name": "execution-evidence-refused-by-approval-verifier",
+      "receipt": {
+        "canonicalPayload": "{\"approval\":{\"nonce\":\"9c3f7b2a-0000-4000-8000-abcdef123456\",\"payloadSha256\":\"21574c5251da4d77846dd499a6d65b0570edb04bf18af9948289b46bd2d7d41a\"},\"observation\":{},\"observedAt\":\"2026-10-05T14:02:11.000Z\",\"source\":\"did:intyga:test-signer\",\"type\":\"dewp-execution-evidence\",\"v\":1,\"verdict\":\"confirmed\"}",
+        "target": "prod-payments-gateway",
+        "actionType": "payments.wire",
+        "actionDescription": "Wire $9,000 to \"ACME-123\" — final",
+        "params": {
+          "amount": 9000,
+          "vendor": "ACME-123",
+          "meta": {
+            "tags": [
+              "urgent",
+              "q3"
+            ],
+            "ok": true
+          }
+        },
+        "requester": {
+          "did": "did:intyga:agent-007",
+          "attestation": {
+            "method": "gcp-workload-identity",
+            "issuer": "https://accounts.google.com",
+            "subject": "svc@proj.iam.gserviceaccount.com"
+          }
+        },
+        "signerDid": "did:intyga:test-signer",
+        "signerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFapJVK9jXaesH8lZ1Xk3QylMJW/8oKuLLr+3DSXgWjHI4TwJye6MhBYcWxfgh3goR2H4ESC2+3j7dPB8IhUbIw==",
+        "signature": "GuVWpvitQNYiMAEVc+oAlon6p2Ce6TF9IkFVYiSyle2fwD9ldgmLOCdlnn0TxN8tMkHOJIgj2myVkmjvZcKKrQ==",
+        "sigAlg": "ES256",
+        "verificationCode": "3DBC-DB0C"
       },
       "expectOk": false
     },

@@ -59,8 +59,11 @@ type VerificationProperties struct {
 type BundleChecks struct{ Inclusion, RootConsistency, LeafBinding, HeaderBinding, Anchored CheckResult }
 type BundleVerification struct {
 	Signature AuditSignatureCheck `json:"signature"`
-	OK        bool                `json:"ok"`
-	DailyRoot *string             `json:"dailyRoot"`
+	// Execution is DEWP §4.7.3 for an Evidence Record, nil otherwise. One proof cannot bind a statement
+	// to its dispatch and approval, so it is at best unbound.
+	Execution *ExecutionEvidenceCheck `json:"execution"`
+	OK        bool                    `json:"ok"`
+	DailyRoot *string                 `json:"dailyRoot"`
 	// RootSource is "caller-supplied", "self-asserted" or "none". A supplied root is never labelled
 	// "independent": the verifier cannot tell one recorded independently from one copied out of the
 	// bundle itself.
@@ -85,6 +88,8 @@ type BundleVerifyOptions struct {
 	// measured against the anchor's own producer-chosen timestamp. Its Root stands in for TrustedRoot
 	// when that is empty and must equal it otherwise; its EntryCount bounds the proof's leaf counts.
 	TrustedCheckpoint *TrustedCheckpoint
+	// EvidencePolicy is evidence-source trust for DEWP §4.7, separate from approver trust (§4.7.5).
+	EvidencePolicy *ExecutionEvidencePolicy
 }
 
 // Retain the distinction between an absent legacy declaration and an explicit empty protocol.
@@ -227,8 +232,25 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 		header = check(bp(hg), "displayed fields match committed preimage")
 		content = incl && cons && good && hg
 	}
+	// DEWP §4.7: the signature and statement checks run once the anchored time is known (§4.7.5) — a
+	// caller key with a validity interval is placed in time by the counted anchors' external witness,
+	// never by the statement's own timestamps. With no counting anchor it has no anchored time.
+	signatureFor := func(anchoredTimeMs *int64) AuditSignatureCheck {
+		if !content {
+			return uncheckedSignature()
+		}
+		return VerifyAuditSignatureWithEvidence(*b.Event.Canonical, o.SignaturePolicy, o.EvidencePolicy, anchoredTimeMs)
+	}
+	executionFor := func(anchoredTimeMs *int64) *ExecutionEvidenceCheck {
+		if !content || !IsExecutionEvidenceLeaf(*b.Event.Canonical) {
+			return nil
+		}
+		check := CheckExecutionEvidenceLeaf(*b.Event.Canonical, o.EvidencePolicy, anchoredTimeMs)
+		return &check
+	}
 	anchorOK := false
 	witnessTimes := map[string]int64{}
+	var anchoredTimeMs *int64
 	if o.AnchorPolicy != nil && root != "" {
 		cands := o.Anchors
 		if cands == nil {
@@ -246,8 +268,23 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 		q := VerifyAnchorQuorumFor(cands, root, *o.AnchorPolicy, o.ResolveAnchorKey, o.Anchors, o.ExternalKeys, expected)
 		anchorOK = incl && cons && q.OK
 		witnessTimes = q.WitnessTimes
+		// The earliest external witness time among the issuers that COUNTED (a SELF anchor has none).
+		if anchorOK {
+			for _, issuer := range q.VerifiedIssuers {
+				if t, known := q.WitnessTimes[issuer]; known && (anchoredTimeMs == nil || t*1000 < *anchoredTimeMs) {
+					ms := t * 1000
+					anchoredTimeMs = &ms
+				}
+			}
+		}
+		// A divergent anchor is fatal regardless of inclusion; nothing is anchored, so no key is placed.
 		if q.Divergence {
-			return BundleVerification{DailyRoot: rp, RootSource: source, WitnessTimes: witnessTimes, VerificationLevel: "INVALID", Notes: append(notes, q.Reason)}
+			signature := signatureFor(nil)
+			return BundleVerification{
+				Signature: signature, Execution: executionFor(nil), DailyRoot: rp, RootSource: source, WitnessTimes: witnessTimes,
+				Properties:        VerificationProperties{incl && cons, content, signature.Status == "verified", false},
+				VerificationLevel: "INVALID", Notes: append(notes, q.Reason),
+			}
 		}
 		if q.Reason != "" {
 			notes = append(notes, q.Reason)
@@ -256,10 +293,9 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 			notes = append(notes, q.Note)
 		}
 	}
-	signature := uncheckedSignature()
-	if content {
-		signature = VerifyAuditSignature(*b.Event.Canonical, o.SignaturePolicy)
-	}
+	// anchoredTimeMs is set only when the quorum held, so both checks see the same placed-in-time key.
+	signature := signatureFor(anchoredTimeMs)
+	execution := executionFor(anchoredTimeMs)
 	sig := signature.Status == "verified"
 	p := VerificationProperties{incl && cons, content, sig, anchorOK}
 	has := signature.Status != "not_applicable"
@@ -269,7 +305,7 @@ func VerifyBundle(b ProofBundle, o BundleVerifyOptions) BundleVerification {
 	}
 	ok := !kindBad && !conflict && source == "caller-supplied" && incl && cons && (b.Event.Canonical == nil || content) && (o.AnchorPolicy == nil || anchorOK)
 	return BundleVerification{
-		OK: ok && (!o.RequireSignatures || (sig && signature.Trusted)), Signature: signature, DailyRoot: rp, RootSource: source, WitnessTimes: witnessTimes, Properties: p, VerificationLevel: level,
+		OK: ok && (!o.RequireSignatures || (sig && signature.Trusted)), Signature: signature, Execution: execution, DailyRoot: rp, RootSource: source, WitnessTimes: witnessTimes, Properties: p, VerificationLevel: level,
 		Checks: BundleChecks{ci, cr, leaf, header, check(nil, "producer claim only")}, Notes: notes,
 	}
 }
