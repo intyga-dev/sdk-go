@@ -218,6 +218,33 @@ func TestCreateOfflineChallengeDefaults(t *testing.T) {
 	}
 }
 
+func TestCreateOfflineChallengeBindsRequesterControllers(t *testing.T) {
+	f := newOfflineFixture(t)
+	bundle, err := LoadTrustBundle(f.dir, f.asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range bundle.Policy {
+		if bundle.Policy[i].ActionPattern == "db.restart" {
+			bundle.Policy[i].RequesterCannotApprove = true
+		}
+	}
+	requester := verify.RequesterIdentity{DID: "did:example:requester"}
+	if _, err := CreateOfflineChallenge(OfflineChallengeInput{Bundle: bundle, Target: "t", ActionType: "db.restart", Display: "d", Requester: requester, AsOf: f.asOf}); err == nil || !strings.Contains(err.Error(), "no approval rule matching") {
+		// The reference reports a missing controller entry as an unresolvable rule.
+		t.Fatalf("four-eyes challenge accepted a stale bundle: %v", err)
+	}
+	controllers := map[string][]string{requester.DID: {"did:example:controller"}}
+	bundle.RequesterControllers = &controllers
+	challenge, err := CreateOfflineChallenge(OfflineChallengeInput{Bundle: bundle, Target: "t", ActionType: "db.restart", Display: "d", Requester: requester, AsOf: f.asOf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if challenge.Requirement.ExcludedSignerDIDs == nil || !subset([]string{"did:example:controller"}, *challenge.Requirement.ExcludedSignerDIDs) {
+		t.Fatalf("controller exclusions not signed: %#v", challenge.Requirement.ExcludedSignerDIDs)
+	}
+}
+
 func TestUseOfflineApprovalBuffersThenRedeems(t *testing.T) {
 	f := newOfflineFixture(t)
 	var warnings []string

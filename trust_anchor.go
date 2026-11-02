@@ -65,6 +65,12 @@ type TrustAnchorFile struct {
 	Approvers  []BundleApprover     `json:"approvers"`
 	WebAuthn   *TrustAnchorWebAuthn `json:"webauthn,omitempty"`
 	ExportedAt string               `json:"exportedAt,omitempty"`
+	// EnrolledDeviceKeys (online anchors only) are the approver keys that are ENROLLED APPROVER
+	// DEVICE keys (DIV §4.3.2): pass them as verify.Expected.EnrolledDeviceKeys (see
+	// TrustAnchorEnrolledDeviceKeys) so a receipt whose signed policy requires an enrolled device
+	// verifies. Every entry is also pinned under some approver's PublicKeys — the list narrows which
+	// trusted keys count, it never adds trust.
+	EnrolledDeviceKeys []string `json:"enrolledDeviceKeys,omitempty"`
 }
 
 var (
@@ -99,13 +105,13 @@ func ParseTrustAnchorFile(jsonText string, purpose TrustAnchorPurpose) (*TrustAn
 		return fail("type must be %q — a div-trust-bundle JWS (offline approval) is a different, gateway-signed artifact and cannot be used here", TrustAnchorFileType)
 	}
 	if v, ok := obj["v"].(float64); !ok || v != 1 {
-		return fail("unsupported version %s (expected 1)", jsonRepr(obj["v"]))
+		return fail("unsupported version %s (expected 1)", jsonField(obj, "v"))
 	}
 	filePurpose := TrustAnchorOnline
 	if rawPurpose, present := obj["purpose"]; present {
 		p, _ := rawPurpose.(string)
 		if p != string(TrustAnchorOnline) && p != string(TrustAnchorOffline) {
-			return fail(`purpose must be "online" or "offline", got %s`, jsonRepr(rawPurpose))
+			return fail(`purpose must be "online" or "offline", got %s`, jsonField(obj, "purpose"))
 		}
 		filePurpose = TrustAnchorPurpose(p)
 	}
@@ -116,6 +122,10 @@ func ParseTrustAnchorFile(jsonText string, purpose TrustAnchorPurpose) (*TrustAn
 	if !ok || epoch != math.Trunc(epoch) || epoch < 0 || epoch > maxSafeInteger {
 		return fail("epoch must be a non-negative integer")
 	}
+	tenantID, tenantOK := obj["tenantId"].(string)
+	if _, present := obj["tenantId"]; present && (!tenantOK || tenantID == "") {
+		return fail("tenantId must be a non-empty string when present")
+	}
 	label, ok := obj["label"].(string)
 	if _, present := obj["label"]; present && !ok {
 		return fail("label must be a string")
@@ -123,10 +133,6 @@ func ParseTrustAnchorFile(jsonText string, purpose TrustAnchorPurpose) (*TrustAn
 	exportedAt, ok := obj["exportedAt"].(string)
 	if _, present := obj["exportedAt"]; present && !ok {
 		return fail("exportedAt must be a string")
-	}
-	tenantID, tenantOK := obj["tenantId"].(string)
-	if _, present := obj["tenantId"]; present && (!tenantOK || tenantID == "") {
-		return fail("tenantId must be a non-empty string when present")
 	}
 
 	entries, ok := obj["approvers"].([]interface{})
@@ -137,12 +143,16 @@ func ParseTrustAnchorFile(jsonText string, purpose TrustAnchorPurpose) (*TrustAn
 	approvers := make([]BundleApprover, 0, len(entries))
 	for _, rawEntry := range entries {
 		entry, ok := rawEntry.(map[string]interface{})
+		if _, isArray := rawEntry.([]interface{}); isArray {
+			// typeof [] === "object" in the reference: an array entry is an object with no fields.
+			entry, ok = map[string]interface{}{}, true
+		}
 		if !ok {
 			return fail("every approvers[] entry must be an object")
 		}
 		did, ok := entry["did"].(string)
 		if !ok || !strings.HasPrefix(did, "did:") {
-			return fail(`approver did %s must be a string starting with "did:"`, jsonRepr(entry["did"]))
+			return fail(`approver did %s must be a string starting with "did:"`, jsonField(entry, "did"))
 		}
 		if seen[did] {
 			return fail("duplicate approver did %s", did)
@@ -176,9 +186,45 @@ func ParseTrustAnchorFile(jsonText string, purpose TrustAnchorPurpose) (*TrustAn
 		approvers = append(approvers, approver)
 	}
 
+	var enrolledDeviceKeys []string
+	if rawDevices, present := obj["enrolledDeviceKeys"]; present {
+		if filePurpose != TrustAnchorOnline {
+			return fail("enrolledDeviceKeys is only meaningful in an online anchor — offline approvals cannot use an enrolled device")
+		}
+		list, ok := rawDevices.([]interface{})
+		if !ok {
+			return fail("enrolledDeviceKeys must be an array of base64 SPKI keys")
+		}
+		pinned := map[string]bool{}
+		for _, a := range approvers {
+			for _, k := range a.PublicKeys {
+				pinned[k] = true
+			}
+		}
+		enrolledDeviceKeys = make([]string, 0, len(list))
+		for _, raw := range list {
+			key, ok := raw.(string)
+			if !ok || !isBase64Key(key) {
+				return fail("enrolledDeviceKeys must be an array of base64 SPKI keys")
+			}
+			if !pinned[key] {
+				// The reference's key.slice(0, 16): a base64 key is ASCII, so bytes are code units.
+				prefix := key
+				if len(prefix) > 16 {
+					prefix = prefix[:16]
+				}
+				return fail("enrolledDeviceKeys entry %s… is not pinned under any approver — list it in that approver's publicKeys", prefix)
+			}
+			enrolledDeviceKeys = append(enrolledDeviceKeys, key)
+		}
+	}
+
 	var webauthn *TrustAnchorWebAuthn
 	if rawW, present := obj["webauthn"]; present {
 		w, ok := rawW.(map[string]interface{})
+		if _, isArray := rawW.([]interface{}); isArray {
+			w, ok = map[string]interface{}{}, true
+		}
 		if !ok {
 			return fail("webauthn must be an object")
 		}
@@ -194,16 +240,26 @@ func ParseTrustAnchorFile(jsonText string, purpose TrustAnchorPurpose) (*TrustAn
 	}
 
 	return &TrustAnchorFile{
-		Type:       TrustAnchorFileType,
-		V:          1,
-		TenantID:   tenantID,
-		Purpose:    filePurpose,
-		Epoch:      int64(epoch),
-		Label:      label,
-		Approvers:  approvers,
-		WebAuthn:   webauthn,
-		ExportedAt: exportedAt,
+		Type:               TrustAnchorFileType,
+		V:                  1,
+		TenantID:           tenantID,
+		Purpose:            filePurpose,
+		Epoch:              int64(epoch),
+		Label:              label,
+		Approvers:          approvers,
+		WebAuthn:           webauthn,
+		EnrolledDeviceKeys: enrolledDeviceKeys,
+		ExportedAt:         exportedAt,
 	}, nil
+}
+
+// TrustAnchorEnrolledDeviceKeys returns the file's enrolled approver device keys, for
+// verify.Expected.EnrolledDeviceKeys (DIV §4.3.2). It is empty, never nil, when the file lists none.
+func TrustAnchorEnrolledDeviceKeys(file *TrustAnchorFile) []string {
+	if file == nil {
+		return []string{}
+	}
+	return append([]string{}, file.EnrolledDeviceKeys...)
 }
 
 // TrustAnchorApprovers builds the verifier's trust anchor from a parsed file: DID mode, one identity
@@ -240,6 +296,20 @@ func TrustAnchorApprovers(file *TrustAnchorFile, limitToDids []string) verify.Ap
 // decoding to at least one byte (two or more significant characters).
 func isBase64Key(s string) bool {
 	return trustAnchorKeyPattern.MatchString(s) && len(strings.TrimRight(s, "=")) >= 2
+}
+
+// jsonField renders obj[key] for an error message as the reference's JSON.stringify(obj[key]) does:
+// an absent field is "undefined", and strings are escaped as JSON.stringify escapes them.
+func jsonField(obj map[string]interface{}, key string) string {
+	v, present := obj[key]
+	if !present {
+		return "undefined"
+	}
+	if out, err := verify.StableStringify(v); err == nil {
+		return out
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 // jsonRepr renders a JSON value for an error message, as JSON.stringify would.

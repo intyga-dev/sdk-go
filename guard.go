@@ -22,6 +22,11 @@ type ApprovalGuardOptions struct {
 	Approvers                       verify.ApproverTrustAnchor
 	Requirement                     *verify.RequirementFloor
 	ExpectedOrigin, ExpectedRpID    string
+	// EnrolledDeviceKeys are YOUR enrolled approver device keys (DIV §4.3.2), e.g.
+	// TrustAnchorEnrolledDeviceKeys of your trust-anchor file. Required to verify a receipt whose
+	// signed policy demands an enrolled device; every entry must be a non-empty base64 key. Set
+	// Requirement.RequireEnrolledDevice to demand that policy yourself.
+	EnrolledDeviceKeys []string
 	// TenantID is the independently trusted tenant expected on DIV v2 receipts: supply it from your
 	// trust anchor or other independently trusted configuration; it is never inferred from the gateway
 	// response or the receipt. Empty keeps v1-only verification, which refuses every v2 receipt the
@@ -58,6 +63,14 @@ func NewApprovalGuard[R any](client *Client, opts ApprovalGuardOptions, tool Too
 	}
 	if opts.ReportDispatch != 0 && (opts.ReportDispatch < 10 || opts.ReportDispatch > 86400) {
 		return nil, errors.New("intyga: ReportDispatch must be zero or 10..86400 seconds")
+	}
+	for _, key := range opts.EnrolledDeviceKeys {
+		if key == "" {
+			return nil, errors.New("intyga: approval guard EnrolledDeviceKeys must be an array of non-empty base64 keys")
+		}
+	}
+	if opts.EnrolledDeviceKeys != nil {
+		opts.EnrolledDeviceKeys = append([]string{}, opts.EnrolledDeviceKeys...)
 	}
 	opts.Approvers.PublicKeys = append([]string(nil), opts.Approvers.PublicKeys...)
 	opts.Approvers.DIDs = append([]string(nil), opts.Approvers.DIDs...)
@@ -103,6 +116,7 @@ func NewApprovalGuard[R any](client *Client, opts ApprovalGuardOptions, tool Too
 			TenantID: tenantID,
 			Target:   opts.Target, ActionType: opts.ActionType, Params: bound, Nonce: approval.Nonce,
 			Approvers: opts.Approvers, Requirement: opts.Requirement,
+			EnrolledDeviceKeys: opts.EnrolledDeviceKeys,
 		}, verify.VerifyOptions{ExpectedOrigin: opts.ExpectedOrigin, ExpectedRpID: opts.ExpectedRpID})
 		if !checked.OK {
 			return zero, &ApprovalGuardError{"UNVERIFIED", checked.Reason}

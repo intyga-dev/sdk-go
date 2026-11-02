@@ -49,66 +49,86 @@ type offlineVectors struct {
 	Bundle        json.RawMessage         `json:"bundle"`
 	BundleJWS     string                  `json:"bundleJws"`
 	TrustBundle   []struct {
-		Name   string          `json:"name"`
-		JWS    string          `json:"jws"`
-		AsOf   string          `json:"asOf"`
-		OK     bool            `json:"ok"`
-		Bundle json.RawMessage `json:"bundle"`
+		Name         string          `json:"name"`
+		JWS          string          `json:"jws"`
+		AsOf         string          `json:"asOf"`
+		OK           bool            `json:"ok"`
+		Bundle       json.RawMessage `json:"bundle"`
+		Reason       *string         `json:"reason"`
+		ReasonPrefix *string         `json:"reasonPrefix"`
 		// GatewayJWK, when present, replaces the top-level pinned key for this case.
 		GatewayJWK json.RawMessage `json:"gatewayJwk"`
 	} `json:"trustBundle"`
 	BundleAnchor []struct {
-		Name        string              `json:"name"`
-		Purpose     BundleAnchorPurpose `json:"purpose"`
-		LimitToDids []string            `json:"limitToDids"`
-		OK          bool                `json:"ok"`
-		Expect      struct {
+		Name           string               `json:"name"`
+		Purpose        BundleAnchorPurpose  `json:"purpose"`
+		LimitToDids    []string             `json:"limitToDids"`
+		ExcludedDids   []string             `json:"excludedDids"`
+		Approvers      []BundleApprover     `json:"approvers"`
+		ControllerKeys *map[string][]string `json:"controllerKeys"`
+		OK             bool                 `json:"ok"`
+		Reason         *string              `json:"reason"`
+		ReasonPrefix   *string              `json:"reasonPrefix"`
+
+		Expect struct {
 			DIDs []string            `json:"dids"`
 			Keys map[string][]string `json:"keys"`
 		} `json:"expect"`
 	} `json:"bundleAnchor"`
 	RequirementFor []struct {
-		Name                  string          `json:"name"`
-		Policy                []BundlePolicy  `json:"policy"`
-		UnmatchedActionPolicy string          `json:"unmatchedActionPolicy"`
-		ActionType            string          `json:"actionType"`
-		Display               string          `json:"display"`
-		Expect                json.RawMessage `json:"expect"`
+		Name                  string               `json:"name"`
+		Policy                []BundlePolicy       `json:"policy"`
+		UnmatchedActionPolicy string               `json:"unmatchedActionPolicy"`
+		ActionType            string               `json:"actionType"`
+		Display               string               `json:"display"`
+		RequesterDID          *string              `json:"requesterDid"`
+		RequesterControllers  *map[string][]string `json:"requesterControllers"`
+		BundleVersion         *int                 `json:"bundleVersion"` // sets the bundle's v (DIV §5a.4)
+		Expect                json.RawMessage      `json:"expect"`
 	} `json:"requirementFor"`
 	TrustAnchorFile []struct {
-		Name    string             `json:"name"`
-		Text    string             `json:"text"`
-		Purpose TrustAnchorPurpose `json:"purpose"`
-		OK      bool               `json:"ok"`
-		Expect  json.RawMessage    `json:"expect"`
+		Name         string             `json:"name"`
+		Text         string             `json:"text"`
+		Purpose      TrustAnchorPurpose `json:"purpose"`
+		OK           bool               `json:"ok"`
+		Expect       json.RawMessage    `json:"expect"`
+		Reason       *string            `json:"reason"`
+		ReasonPrefix *string            `json:"reasonPrefix"`
 	} `json:"trustAnchorFile"`
 	CreateChallenge []struct {
 		Name  string `json:"name"`
 		Input struct {
-			Target         string                   `json:"target"`
-			ActionType     string                   `json:"actionType"`
-			Display        string                   `json:"display"`
-			Params         map[string]interface{}   `json:"params"`
-			BundleTenantID json.RawMessage          `json:"bundleTenantId"`
-			WindowMinutes  *float64                 `json:"windowMinutes"`
-			Nonce          *string                  `json:"nonce"`
-			Requester      verify.RequesterIdentity `json:"requester"`
-			AsOf           string                   `json:"asOf"`
-			Delegation     *struct {
+			Target                     string                   `json:"target"`
+			ActionType                 string                   `json:"actionType"`
+			Display                    string                   `json:"display"`
+			Params                     map[string]interface{}   `json:"params"`
+			BundleTenantID             json.RawMessage          `json:"bundleTenantId"`
+			BundleRequesterControllers json.RawMessage          `json:"bundleRequesterControllers"`
+			BundleVersion              *int                     `json:"bundleVersion"` // replaces the base bundle's v (DIV §5a.4)
+			BundlePolicy               []BundlePolicy           `json:"bundlePolicy"`  // replaces the base bundle's policy
+			WindowMinutes              *float64                 `json:"windowMinutes"`
+			Nonce                      *string                  `json:"nonce"`
+			Requester                  verify.RequesterIdentity `json:"requester"`
+			AsOf                       string                   `json:"asOf"`
+			Delegation                 *struct {
 				DelegatedTo     []string `json:"delegatedTo"`
 				DelegatedQuorum int      `json:"delegatedQuorum"`
 				Nonce           string   `json:"nonce"`
 				TenantID        string   `json:"tenantId"`
 			} `json:"delegation"`
 		} `json:"input"`
-		OK     bool                       `json:"ok"`
-		Expect map[string]json.RawMessage `json:"expect"`
+		OK           bool                       `json:"ok"`
+		Expect       map[string]json.RawMessage `json:"expect"`
+		Reason       *string                    `json:"reason"`
+		ReasonPrefix *string                    `json:"reasonPrefix"`
 	} `json:"createChallenge"`
 	ChallengeEnvelope []struct {
-		Name     string          `json:"name"`
-		Envelope string          `json:"envelope"`
-		OK       bool            `json:"ok"`
-		Expect   json.RawMessage `json:"expect"`
+		Name         string          `json:"name"`
+		Envelope     string          `json:"envelope"`
+		OK           bool            `json:"ok"`
+		Expect       json.RawMessage `json:"expect"`
+		Reason       *string         `json:"reason"`
+		ReasonPrefix *string         `json:"reasonPrefix"`
 	} `json:"challengeEnvelope"`
 	SignatureEnvelope struct {
 		Encode []struct {
@@ -116,10 +136,12 @@ type offlineVectors struct {
 			Envelope string                 `json:"envelope"`
 		} `json:"encode"`
 		Decode []struct {
-			Name     string          `json:"name"`
-			Envelope string          `json:"envelope"`
-			OK       bool            `json:"ok"`
-			Witness  json.RawMessage `json:"witness"`
+			Name         string          `json:"name"`
+			Envelope     string          `json:"envelope"`
+			OK           bool            `json:"ok"`
+			Witness      json.RawMessage `json:"witness"`
+			Reason       *string         `json:"reason"`
+			ReasonPrefix *string         `json:"reasonPrefix"`
 		} `json:"decode"`
 	} `json:"signatureEnvelope"`
 	SignChallenge []struct {
@@ -129,10 +151,13 @@ type offlineVectors struct {
 			Person string `json:"person"`
 			Key    string `json:"key"`
 		} `json:"signer"`
-		SignerDID string `json:"signerDid"`
-		AsOf      string `json:"asOf"`
-		OK        bool   `json:"ok"`
-		Expect    struct {
+		SignerDID    string  `json:"signerDid"`
+		AsOf         string  `json:"asOf"`
+		OK           bool    `json:"ok"`
+		Reason       *string `json:"reason"`
+		ReasonPrefix *string `json:"reasonPrefix"`
+
+		Expect struct {
 			SignerDID       string `json:"signerDid"`
 			SignerPublicKey string `json:"signerPublicKey"`
 			SigAlg          string `json:"sigAlg"`
@@ -161,7 +186,10 @@ type offlineVectors struct {
 		BundleJWS           string            `json:"bundleJws"`
 		AsOf                string            `json:"asOf"`
 		OK                  bool              `json:"ok"`
-		Expect              struct {
+		Reason              *string           `json:"reason"`
+		ReasonPrefix        *string           `json:"reasonPrefix"`
+
+		Expect struct {
 			Signers       []string `json:"signers"`
 			ViaDelegation *string  `json:"viaDelegation"`
 		} `json:"expect"`
@@ -280,6 +308,64 @@ func sameJSON(t *testing.T, got interface{}, want json.RawMessage) bool {
 	return reflect.DeepEqual(g, w)
 }
 
+// assertReason checks a refusal against the reference text: `reason` exactly, or `reasonPrefix` where
+// the reference embeds a platform library's own message. A refusal vector must carry one of them.
+func assertReason(t *testing.T, name string, reason, prefix *string, err error) {
+	t.Helper()
+	got := ""
+	if err != nil {
+		got = err.Error()
+	}
+	switch {
+	case reason != nil:
+		if want := localizedReason(t, *reason); got != want {
+			t.Errorf("%s: reason\n got %q\nwant %q", name, got, want)
+		}
+	case prefix != nil:
+		if want := localizedReason(t, *prefix); !strings.HasPrefix(got, want) {
+			t.Errorf("%s: reason %q lacks prefix %q", name, got, want)
+		}
+	default:
+		t.Errorf("%s: a refusal vector must carry reason or reasonPrefix", name)
+	}
+}
+
+// localizedReason rewrites the TypeScript API names in an expected reason into Go's, from
+// packages/mcp-schemas/vectors/api-name-hints.json: every token, longest first, becomes a
+// placeholder, then every placeholder becomes the Go spelling (a single pass). The Go map must name
+// exactly the listed tokens.
+func localizedReason(t *testing.T, text string) string {
+	t.Helper()
+	data, err := os.ReadFile("vectors/api-name-hints.json")
+	if err != nil {
+		t.Fatalf("read api-name hints: %v", err)
+	}
+	var hints struct {
+		Tokens []string          `json:"tokens"`
+		Go     map[string]string `json:"go"`
+	}
+	if err := json.Unmarshal(data, &hints); err != nil {
+		t.Fatalf("parse api-name hints: %v", err)
+	}
+	if len(hints.Go) != len(hints.Tokens) {
+		t.Fatalf("api-name hints: go map has %d entries for %d tokens", len(hints.Go), len(hints.Tokens))
+	}
+	order := append([]string(nil), hints.Tokens...)
+	for _, token := range order {
+		if _, ok := hints.Go[token]; !ok {
+			t.Fatalf("api-name hints: go map lacks %q", token)
+		}
+	}
+	sort.SliceStable(order, func(i, j int) bool { return len(order[i]) > len(order[j]) })
+	for i, token := range order {
+		text = strings.ReplaceAll(text, token, fmt.Sprintf("\x00%d\x00", i))
+	}
+	for i, token := range order {
+		text = strings.ReplaceAll(text, fmt.Sprintf("\x00%d\x00", i), hints.Go[token])
+	}
+	return text
+}
+
 func TestOfflineVectors(t *testing.T) {
 	V := loadOfflineVectors(t)
 	gatewayJWK := V.GatewayJWK
@@ -313,7 +399,7 @@ func TestOfflineVectors(t *testing.T) {
 				continue
 			}
 			if err != nil {
-				t.Logf("%s: refused as expected: %v", c.Name, err)
+				assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
 			}
 			if c.OK && !sameJSON(t, b, c.Bundle) {
 				got, _ := json.Marshal(b)
@@ -323,11 +409,24 @@ func TestOfflineVectors(t *testing.T) {
 	})
 
 	t.Run("bundleAnchor", func(t *testing.T) {
-		bundle := V.bundle(t)
 		for i, c := range V.BundleAnchor {
 			cases++
-			anchor := ApproverAnchor(bundle, c.LimitToDids, c.Purpose)
+			bundle := V.bundle(t)
+			if c.Approvers != nil {
+				bundle.Approvers = c.Approvers
+			}
+			if c.ControllerKeys != nil {
+				bundle.ControllerKeys = c.ControllerKeys
+			}
+			anchor, err := ApproverAnchorChecked(bundle, c.LimitToDids, c.Purpose, c.ExcludedDids...)
+			if (err == nil) != c.OK {
+				t.Errorf("%s: ok=%v want %v (%v)", c.Name, err == nil, c.OK, err)
+				continue
+			}
 			if !c.OK {
+				assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
+				// The legacy form fails closed on the same input: an anchor that trusts nobody.
+				anchor = ApproverAnchor(bundle, c.LimitToDids, c.Purpose, c.ExcludedDids...)
 				if len(anchor.DIDs) != 0 {
 					t.Errorf("%s: refused anchor admitted %v", c.Name, anchor.DIDs)
 				}
@@ -354,9 +453,19 @@ func TestOfflineVectors(t *testing.T) {
 		for _, c := range V.RequirementFor {
 			cases++
 			bundle := V.bundle(t)
+			if c.BundleVersion != nil {
+				bundle.V = *c.BundleVersion
+			}
 			bundle.Policy = c.Policy
 			bundle.UnmatchedActionPolicy = c.UnmatchedActionPolicy
-			got, ok := RequirementFor(bundle, c.ActionType, c.Display)
+			if c.RequesterControllers != nil {
+				bundle.RequesterControllers = c.RequesterControllers
+			}
+			var requester []string
+			if c.RequesterDID != nil {
+				requester = []string{*c.RequesterDID}
+			}
+			got, ok := RequirementFor(bundle, c.ActionType, c.Display, requester...)
 			if string(c.Expect) == "null" {
 				if ok {
 					t.Errorf("%s: resolved %+v, want a refusal", c.Name, got)
@@ -379,7 +488,7 @@ func TestOfflineVectors(t *testing.T) {
 				continue
 			}
 			if err != nil {
-				t.Logf("%s: refused as expected: %v", c.Name, err)
+				assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
 			}
 			if !c.OK {
 				continue
@@ -398,6 +507,10 @@ func TestOfflineVectors(t *testing.T) {
 			if parsed.TenantID != "" {
 				got["tenantId"] = parsed.TenantID
 			}
+			// Carried exactly when the parsed file lists at least one (DIV §4.3.2).
+			if keys := TrustAnchorEnrolledDeviceKeys(parsed); len(keys) > 0 {
+				got["enrolledDeviceKeys"] = keys
+			}
 			if !sameJSON(t, got, c.Expect) {
 				encoded, _ := json.Marshal(got)
 				t.Errorf("%s: got %s want %s", c.Name, encoded, c.Expect)
@@ -411,6 +524,12 @@ func TestOfflineVectors(t *testing.T) {
 			cases++
 			in := c.Input
 			caseBundle := *bundle
+			if in.BundleVersion != nil {
+				caseBundle.V = *in.BundleVersion
+			}
+			if in.BundlePolicy != nil {
+				caseBundle.Policy = in.BundlePolicy
+			}
 			if in.BundleTenantID != nil {
 				if string(in.BundleTenantID) == "null" {
 					caseBundle.TenantID = ""
@@ -418,14 +537,35 @@ func TestOfflineVectors(t *testing.T) {
 					t.Fatalf("%s: invalid bundleTenantId vector input: %v", c.Name, err)
 				}
 			}
+			if in.BundleRequesterControllers != nil {
+				if string(in.BundleRequesterControllers) == "null" {
+					caseBundle.RequesterControllers = nil
+				} else {
+					var controllers map[string][]string
+					if err := json.Unmarshal(in.BundleRequesterControllers, &controllers); err != nil {
+						t.Fatalf("%s: invalid bundleRequesterControllers vector input: %v", c.Name, err)
+					}
+					caseBundle.RequesterControllers = &controllers
+				}
+			}
 			// WindowMinutes is an int in Go, so a fractional window (2.5) cannot reach
-			// CreateOfflineChallenge at all: it is refused where the JSON number becomes an int.
-			window, err := wholeMinutes(in.WindowMinutes)
-			if err != nil {
+			// CreateOfflineChallenge at all: it is refused where the JSON number becomes an int. The
+			// reference checks the window after the tenant, target, rule and hardware checks, so those
+			// are run first (with no window, nonce or delegation to fault) to keep the reported order.
+			window, windowErr := wholeMinutes(in.WindowMinutes)
+			if windowErr != nil {
+				safe := "off_vector-window-probe"
+				_, err := CreateOfflineChallenge(OfflineChallengeInput{
+					Bundle: &caseBundle, Target: in.Target, ActionType: in.ActionType, Display: in.Display,
+					Params: in.Params, Requester: in.Requester, AsOf: mustTime(t, in.AsOf), Nonce: &safe,
+				})
+				if err == nil {
+					err = windowErr
+				}
 				if c.OK {
 					t.Errorf("%s: %v", c.Name, err)
 				} else {
-					t.Logf("%s: refused as expected: %v", c.Name, err)
+					assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
 				}
 				continue
 			}
@@ -458,7 +598,7 @@ func TestOfflineVectors(t *testing.T) {
 				continue
 			}
 			if err != nil {
-				t.Logf("%s: refused as expected: %v", c.Name, err)
+				assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
 			}
 			if !c.OK {
 				continue
@@ -483,7 +623,7 @@ func TestOfflineVectors(t *testing.T) {
 				continue
 			}
 			if err != nil {
-				t.Logf("%s: refused as expected: %v", c.Name, err)
+				assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
 			}
 			if c.OK && !sameJSON(t, got, c.Expect) {
 				encoded, _ := json.Marshal(got)
@@ -507,7 +647,7 @@ func TestOfflineVectors(t *testing.T) {
 				continue
 			}
 			if err != nil {
-				t.Logf("%s: refused as expected: %v", c.Name, err)
+				assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
 			}
 			if c.OK && !sameJSON(t, w, c.Witness) {
 				encoded, _ := json.Marshal(w)
@@ -529,7 +669,7 @@ func TestOfflineVectors(t *testing.T) {
 				continue
 			}
 			if err != nil {
-				t.Logf("%s: refused as expected: %v", c.Name, err)
+				assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
 			}
 			if !c.OK {
 				continue
@@ -653,7 +793,7 @@ func TestOfflineVectors(t *testing.T) {
 				}
 			}
 			if err != nil {
-				t.Logf("%s: refused as expected: %v", c.Name, err)
+				assertReason(t, c.Name, c.Reason, c.ReasonPrefix, err)
 			}
 			if !c.OK {
 				continue

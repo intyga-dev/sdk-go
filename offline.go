@@ -127,14 +127,14 @@ type OfflineChallengeInput struct {
 // an unsafe or empty nonce.
 func CreateOfflineChallenge(in OfflineChallengeInput) (*OfflineChallenge, error) {
 	if in.Bundle == nil || in.Bundle.TenantID == "" {
-		return nil, errors.New("the verified trust bundle is missing its required tenantId")
+		return nil, errors.New("trust bundle tenantId must be a non-empty string")
 	}
 	// DIV §3 Invariant 5 (Target Isolation): a blank target binds no execution environment, so the
 	// approval would verify at every relying party that also asserts it.
 	if jsTrim(in.Target) == "" {
 		return nil, errors.New("target is required (DIV Target Isolation)")
 	}
-	resolved, ok := RequirementFor(in.Bundle, in.ActionType, in.Display)
+	resolved, ok := RequirementFor(in.Bundle, in.ActionType, in.Display, in.Requester.DID)
 	if !ok {
 		return nil, fmt.Errorf(`the trust bundle has no approval rule matching "%s" that can be selected unambiguously — configure the rule or export a fresh bundle with rule-selection metadata (DIV §5a.3)`, in.ActionType)
 	}
@@ -142,6 +142,10 @@ func CreateOfflineChallenge(in OfflineChallengeInput) (*OfflineChallenge, error)
 	// produce a valid signature for wastes the one resource an incident is short of.
 	if resolved.Requirement.RequiresHardwareCredential() {
 		return nil, fmt.Errorf(`"%s" requires a hardware-backed WebAuthn credential, which cannot be produced offline — this action cannot be approved out of band (DIV §5a.3)`, in.ActionType)
+	}
+	// Same class of refusal: an offline key is never an enrolled approver device key (DIV §5a.3).
+	if resolved.Requirement.RequireEnrolledDevice {
+		return nil, fmt.Errorf(`"%s" requires an enrolled approver device, which cannot sign offline — this action cannot be approved out of band (DIV §5a.3)`, in.ActionType)
 	}
 
 	window := DefaultOfflineWindowMinutes
@@ -181,7 +185,7 @@ func CreateOfflineChallenge(in OfflineChallengeInput) (*OfflineChallenge, error)
 			in.ActionType, resolved.Requirement.RequiredApprovals, in.Delegation.DelegatedQuorum)
 	}
 	if in.Delegation != nil && in.Delegation.TenantID != in.Bundle.TenantID {
-		return nil, errors.New("the delegation and trust bundle belong to different tenants or DIV versions")
+		return nil, errors.New("delegation and trust bundle belong to different tenants")
 	}
 
 	// Under a delegation the eligible set and the quorum are the DELEGATED ones. Everything else in
@@ -218,6 +222,28 @@ func CreateOfflineChallenge(in OfflineChallengeInput) (*OfflineChallenge, error)
 		Requirement:      requirement,
 		ApproverDids:     approverDids,
 	}, nil
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, value := range values {
+		if !seen[value] {
+			seen[value] = true
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+// requirementForRequester re-resolves the ordinary rule for an independently known requester, with the
+// reference's refusal text.
+func requirementForRequester(bundle *TrustBundle, actionType, display string, requester verify.RequesterIdentity) (ResolvedRequirement, error) {
+	resolved, ok := RequirementFor(bundle, actionType, display, requester.DID)
+	if !ok {
+		return ResolvedRequirement{}, errors.New("no unambiguous approval rule applies to this action")
+	}
+	return resolved, nil
 }
 
 // VerificationCode is the short code shown to the approver and the operator: the first 8 hex digits of
@@ -268,7 +294,7 @@ func DecodeChallengeEnvelope(envelope string) (*DecodedChallenge, error) {
 		return nil, errors.New("challenge payload is not a JSON object")
 	}
 	if parsed["type"] != verify.DivOfflineIntentType {
-		return nil, fmt.Errorf("this is a %s payload, not an offline approval challenge — refusing to sign it", fmt.Sprint(parsed["type"]))
+		return nil, fmt.Errorf("this is a %s payload, not an offline approval challenge — refusing to sign it", jsTypeDisplay(parsed))
 	}
 	// Shapes before bytes. Canonicalization alone would accept a "target": 5 or a blank target
 	// whenever it re-serializes identically, and the approver would then review — and sign —
@@ -328,17 +354,16 @@ func DecodeChallengeEnvelope(envelope string) (*DecodedChallenge, error) {
 func challengeShapeProblem(p map[string]interface{}) string {
 	version, ok := p["v"].(float64)
 	if !ok || (version != verify.DivVersion && version != verify.DivTenantBoundVersion) {
-		return "has an unsupported DIV payload version"
-	}
-	_, hasTenant := p["tenantId"]
-	if version == verify.DivVersion && hasTenant {
-		return "is a legacy v1 payload carrying tenantId"
+		return "has an unsupported DIV version"
 	}
 	if version == verify.DivTenantBoundVersion {
 		tenantID, ok := p["tenantId"].(string)
 		if !ok || tenantID == "" {
-			return "is a v2 payload without a non-empty tenantId"
+			return "is missing a non-empty tenantId"
 		}
+	}
+	if _, hasTenant := p["tenantId"]; version == verify.DivVersion && hasTenant {
+		return "carries tenantId under legacy DIV v1"
 	}
 	for _, field := range []string{"target", "actionType", "display", "nonce", "challengedAt", "expiresAt"} {
 		if _, ok := p[field].(string); !ok {
@@ -358,8 +383,13 @@ func challengeShapeProblem(p map[string]interface{}) string {
 	if _, ok := requester["did"].(string); !ok {
 		return "requester is not an identity"
 	}
-	if _, ok := p["requirement"].(map[string]interface{}); !ok {
+	requirement, ok := p["requirement"].(map[string]interface{})
+	if !ok {
 		return "requirement is not a JSON object"
+	}
+	// DIV §4.3.2 types: a requirement the approver cannot read faithfully is not one to sign.
+	if !validRequirementShape(requirement) {
+		return "requirement is not a valid approval requirement"
 	}
 	return ""
 }
@@ -457,7 +487,7 @@ func SignChallengeEnvelope(envelope string, opts SignChallengeOptions) (*SignedC
 	// produced signature must bind an independently trusted tenant. Otherwise a live v1 challenge
 	// could be replayed into whichever tenant later accepts the same signing key.
 	if challenge.TenantID == "" {
-		return nil, errors.New("legacy DIV v1 offline challenges are archival-only and cannot be freshly signed")
+		return nil, errors.New("legacy DIV v1 challenges are archival-only and cannot be signed")
 	}
 	// A timestamp we cannot read is not one we can say is still valid (DIV §6.2).
 	expiry, ok := parseTimestampMillis(challenge.ExpiresAt)
@@ -629,6 +659,10 @@ type OfflineApprovalOptions struct {
 	// BundleDir holds the signed trust bundle and the pinned gateway key (see SaveTrustBundle).
 	BundleDir string
 	// RequesterDID is this workload's own identity, bound into the signed bytes.
+	// There is deliberately no credential-issuer option: DIV §4.3.1a requires the Issuing Service to
+	// derive requester.credentialIssuerDid from an authenticated issuance record, which an offline
+	// relying party does not hold. Controller exclusions come from the trusted bundle's
+	// requesterControllers entry instead (DIV §5a.4), as in every other port.
 	RequesterDID string
 	// CollectSignatures gets the challenge to the approvers and their `SIG1:` envelopes back. It is a
 	// seam, not a default: transporting the envelope is a human, site-specific act (a terminal
@@ -691,7 +725,7 @@ func UseOfflineApproval(ctx context.Context, expected OfflineAction, opts Offlin
 	// ones who must have signed that entitlement away.
 	var delegation *verify.VerifiedDelegation
 	if opts.DelegationDir != "" {
-		found, reason := findDelegation(opts.DelegationDir, bundle, expected, opts.RequesterDID, opts.AsOf)
+		found, reason := findDelegation(opts.DelegationDir, bundle, expected, verify.RequesterIdentity{DID: opts.RequesterDID}, opts.AsOf)
 		if reason != "" {
 			warn("⚠ OFFLINE APPROVAL: " + reason)
 		}
@@ -742,9 +776,9 @@ func UseOfflineApproval(ctx context.Context, expected OfflineAction, opts Offlin
 	// bundle's ORDINARY rule, re-resolved here rather than read back from the challenge. Under a
 	// delegation that is still the right floor: CreateOfflineChallenge refused a delegated quorum
 	// below the ordinary one, and the rest of the requirement is copied from the rule.
-	ordinary, ok := RequirementFor(bundle, expected.ActionType, expected.Display)
-	if !ok {
-		return nil, errors.New("no unambiguous approval rule applies to this action")
+	ordinary, err := requirementForRequester(bundle, expected.ActionType, expected.Display, challenge.Requester)
+	if err != nil {
+		return nil, err
 	}
 	floor := requirementFloorOf(ordinary.Requirement)
 	result := verify.VerifyApprovalReceipt(receipt, verify.Expected{
@@ -756,7 +790,8 @@ func UseOfflineApproval(ctx context.Context, expected OfflineAction, opts Offlin
 		RequesterDID: opts.RequesterDID,
 		// Restricted to the approvers eligible for THIS action. The one place offline signing keys
 		// count: this receipt is a div-offline-intent.
-		Approvers:   ApproverAnchor(bundle, challenge.ApproverDids, BundleAnchorOfflineIntent),
+		Approvers: ApproverAnchor(bundle, challenge.ApproverDids, BundleAnchorOfflineIntent,
+			excludedDidsFor(ordinary.Requirement, opts.RequesterDID, challenge.Requester.CredentialIssuerDID)...),
 		Requirement: &floor,
 	}, verify.VerifyOptions{AllowOffline: true, Delegation: delegation, AsOf: opts.AsOf})
 	if !result.OK {
@@ -806,9 +841,9 @@ func UseOfflineApproval(ctx context.Context, expected OfflineAction, opts Offlin
 // file in dir in name order (jsonFilesIn). A file that fails to verify is REPORTED, not silently skipped: a
 // delegation the operator believes they hold but which does not apply is exactly what they need to
 // be told during an incident.
-func findDelegation(dir string, bundle *TrustBundle, expected OfflineAction, requesterDID string, asOf time.Time) (*verify.VerifiedDelegation, string) {
-	resolved, ok := RequirementFor(bundle, expected.ActionType, expected.Display)
-	if !ok {
+func findDelegation(dir string, bundle *TrustBundle, expected OfflineAction, requester verify.RequesterIdentity, asOf time.Time) (*verify.VerifiedDelegation, string) {
+	resolved, err := requirementForRequester(bundle, expected.ActionType, expected.Display, requester)
+	if err != nil {
 		return nil, "no unambiguous ordinary approval rule applies to this delegation — export a fresh trust bundle"
 	}
 	names, err := jsonFilesIn(dir)
@@ -820,16 +855,25 @@ func findDelegation(dir string, bundle *TrustBundle, expected OfflineAction, req
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		var receipt verify.ApprovalReceipt
 		var artifact map[string]json.RawMessage
-		if err == nil && json.Unmarshal(data, &artifact) == nil {
+		if err == nil && json.Unmarshal(data, &artifact) == nil && artifact != nil {
 			if nested, ok := artifact["receipt"]; ok {
 				data = nested
 			}
 		}
-		if err != nil || json.Unmarshal(data, &receipt) != nil {
+		// As in the reference, the candidate must be a JSON object: a null, array or scalar — bare or
+		// wrapped as {"receipt": …} — is unreadable rather than an empty receipt that fails later.
+		var candidate map[string]json.RawMessage
+		if err != nil || json.Unmarshal(data, &candidate) != nil || candidate == nil || json.Unmarshal(data, &receipt) != nil {
 			rejected = append(rejected, name+": unreadable")
 			continue
 		}
 		floor := requirementFloorOf(resolved.Requirement)
+		// The seal's own signed credential issuer, as the reference reads it: its key facts are
+		// excluded too, so it cannot seal under an eligible alias.
+		var issuer *string
+		if receipt.Requester != nil {
+			issuer = receipt.Requester.CredentialIssuerDID
+		}
 		options := verify.VerifyOptions{AsOf: asOf}
 		if bundle.WebAuthn != nil {
 			options.ExpectedOrigin = bundle.WebAuthn.Origin
@@ -837,13 +881,14 @@ func findDelegation(dir string, bundle *TrustBundle, expected OfflineAction, req
 		}
 		res, d := verify.VerifyDelegation(receipt, verify.Expected{
 			TenantID:     &bundle.TenantID,
-			RequesterDID: requesterDID,
+			RequesterDID: requester.DID,
 			Target:       expected.Target,
 			ActionType:   expected.ActionType,
 			Params:       expected.Params,
 			// The ORDINARY approver set — not the delegates. Ordinary keys only: an offline signing
 			// key must never seal a delegation.
-			Approvers: ApproverAnchor(bundle, resolved.ApproverDids, BundleAnchorOrdinary),
+			Approvers: ApproverAnchor(bundle, resolved.ApproverDids, BundleAnchorOrdinary,
+				excludedDidsFor(resolved.Requirement, requester.DID, issuer)...),
 			// DIV §5 step 3d / §5a.5: the sealing requirement may not be weaker than the ordinary
 			// rule. The AAGUID comparison below stays, because the floor does not cover allowedAaguids.
 			Requirement: &floor,
@@ -869,7 +914,11 @@ func findDelegation(dir string, bundle *TrustBundle, expected OfflineAction, req
 		}
 		if sealed.RequiredApprovals < rule.RequiredApprovals ||
 			(rule.RequireHardwareKey && !sealed.RequireHardwareKey) ||
+			// A delegation can never carry requireEnrolledDevice (DIV §4.3.2), so it can never be as
+			// strict as an ordinary rule that demands an enrolled device.
+			rule.RequireEnrolledDevice ||
 			(rule.RequesterCannotApprove && !sealed.RequesterCannotApprove) ||
+			(rule.ExcludedSignerDIDs != nil && (sealed.ExcludedSignerDIDs == nil || !subset(*rule.ExcludedSignerDIDs, *sealed.ExcludedSignerDIDs))) ||
 			weakerAaguids {
 			rejected = append(rejected, name+": delegation sealing requirement is weaker than the ordinary approval rule")
 			continue
@@ -888,6 +937,8 @@ func requirementFloorOf(rule verify.ApprovalRequirement) verify.RequirementFloor
 		RequiredApprovals:      rule.RequiredApprovals,
 		RequesterCannotApprove: rule.RequesterCannotApprove,
 		RequireHardwareKey:     rule.RequireHardwareKey,
+		RequireEnrolledDevice:  rule.RequireEnrolledDevice,
+		ExcludedSignerDIDs:     rule.ExcludedSignerDIDs,
 	}
 }
 
@@ -962,8 +1013,8 @@ func PendingApprovals(opts PendingOptions) ([]PendingApproval, error) {
 }
 
 // readPending reads every record on its own, in file-name order: one unreadable file must not hide the
-// others. A record is unreadable when it cannot be read or parsed, is not a JSON object, or names no
-// nonce. Each unreadable file is returned as a problem naming it.
+// others. A record is unreadable when it cannot be read or parsed, is not a JSON object, or its nonce
+// is not a string (as in the reference). Each unreadable file is returned as a problem naming it.
 func readPending(dir string) ([]PendingApproval, []string) {
 	names, err := jsonFilesIn(dir)
 	if err != nil {
@@ -977,10 +1028,15 @@ func readPending(dir string) ([]PendingApproval, []string) {
 	for _, name := range names {
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		var record *PendingApproval
+		var probe map[string]interface{}
+		if err == nil {
+			err = json.Unmarshal(data, &probe)
+		}
 		if err == nil {
 			err = json.Unmarshal(data, &record)
 		}
-		if err != nil || record == nil || record.Nonce == "" {
+		// The reference's test: a JSON object whose nonce is a string.
+		if _, nonceIsString := probe["nonce"].(string); err != nil || record == nil || !nonceIsString {
 			problems = append(problems, name+": unreadable pending record — report it by hand")
 			continue
 		}
@@ -1044,4 +1100,64 @@ func jsString(s string) string {
 		return string(b)
 	}
 	return out
+}
+
+// excludedDidsFor is every identity the requirement bars from signing: its excludedSignerDids plus,
+// under requesterCannotApprove, the requester and its credential issuer. ApproverAnchor merges their
+// bundle controllerKeys so the verifier can refuse their keys under an eligible alias (DIV §4.4.6).
+func excludedDidsFor(requirement verify.ApprovalRequirement, requesterDID string, issuerDID *string) []string {
+	var out []string
+	add := func(did string) {
+		if !containsString(out, did) {
+			out = append(out, did)
+		}
+	}
+	if requirement.ExcludedSignerDIDs != nil {
+		for _, did := range *requirement.ExcludedSignerDIDs {
+			add(did)
+		}
+	}
+	if requirement.RequesterCannotApprove {
+		add(requesterDID)
+		if issuerDID != nil && *issuerDID != "" {
+			add(*issuerDID)
+		}
+	}
+	return out
+}
+
+// jsTypeDisplay renders a payload's `type` as the reference's String(parsed.type) does: an absent
+// field reads "undefined".
+func jsTypeDisplay(parsed map[string]interface{}) string {
+	v, present := parsed["type"]
+	if !present {
+		return "undefined"
+	}
+	return jsDisplay(v)
+}
+
+// validRequirementShape is the reference's DIV §4.3.2 type check on a decoded requirement:
+// requiredApprovals a safe integer of at least 1, the two flags booleans, allowedAaguids a list of
+// strings and signerClass a string.
+func validRequirementShape(r map[string]interface{}) bool {
+	required, ok := safeInteger(r["requiredApprovals"])
+	if !ok || required < 1 {
+		return false
+	}
+	for _, field := range []string{"requireHardwareKey", "requesterCannotApprove"} {
+		if _, ok := r[field].(bool); !ok {
+			return false
+		}
+	}
+	aaguids, ok := r["allowedAaguids"].([]interface{})
+	if !ok {
+		return false
+	}
+	for _, a := range aaguids {
+		if _, ok := a.(string); !ok {
+			return false
+		}
+	}
+	_, ok = r["signerClass"].(string)
+	return ok
 }

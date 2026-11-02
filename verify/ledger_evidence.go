@@ -605,6 +605,9 @@ func VerifyEvidenceBundle(b EvidenceBundle, o EvidenceVerifyOptions) EvidenceVer
 		MaxWindowSeconds: o.MaxEvidenceWindowSeconds, AnchoredTime: anchoredTime,
 	})
 	if o.RequireExecutionConfirmed {
+		if r.CommitmentOnly > 0 {
+			r.Failed = append(r.Failed, EvidenceFailure{"-", "Required confirmed execution: COMMITMENT_ONLY entries may conceal execution evidence"})
+		}
 		if len(r.Execution.ByNonce) == 0 {
 			r.Failed = append(r.Failed, EvidenceFailure{"-", "Required confirmed execution: the bundle records no execution"})
 		}

@@ -3,7 +3,60 @@
 All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [2.3.0]
+
+- DIV §4.3.2 "Enrolled approver devices" (targets DIV 1.3.0), pinned by the `bundle-v2-enrolled-device-*`
+  and `enrolled-device-*` offline-approval vectors:
+  - `VerifyTrustBundle` accepts `v: 2` exactly when a policy entry carries `requireEnrolledDevice: true`
+    (otherwise "unsupported trust bundle type or version"); an entry may carry the field only in a
+    version 2 bundle and only as `true`. `TrustBundle.V` reports the version.
+  - `RequirementFor` accepts version 1 and 2 bundles and carries `RequireEnrolledDevice` into the
+    returned requirement; the step-3d floor built from a bundle rule carries it too.
+  - `CreateOfflineChallenge` refuses such a rule ("… requires an enrolled approver device, which
+    cannot sign offline …"), and a delegation never satisfies it (always "weaker than the ordinary
+    approval rule").
+  - `PolicyRule.RequireEnrolledDevice`: `LostApprovalConstraints` treats it like `requireHardwareKey`
+    and compares it for auto-approval equality.
+  - `ParseTrustAnchorFile` reads an online anchor's optional `enrolledDeviceKeys` (each entry base64
+    and pinned under some approver's `publicKeys`; refused in an offline anchor), and
+    `TrustAnchorEnrolledDeviceKeys(file)` returns them for `verify.Expected.EnrolledDeviceKeys`.
+  - `ApprovalGuardOptions.EnrolledDeviceKeys` is forwarded to verification as
+    `Expected.EnrolledDeviceKeys` (an empty-string entry is refused when the guard is built), and
+    `Requirement.RequireEnrolledDevice` demands the policy in the guard's floor, as in the TS guard.
+- Requires `github.com/intyga-dev/verify-go/v2` v2.3.0.
+
+## [2.2.0]
+
+- `DecodeChallengeEnvelope` (and so `SignChallengeEnvelope`) refuses a requirement without DIV
+  §4.3.2 types — `requiredApprovals` not a safe integer ≥ 1, a flag that is not a boolean,
+  `allowedAaguids` not a list of strings, `signerClass` not a string.
+
+- Behaviour now identical to the TypeScript reference, pinned by reason-asserting shared vectors:
+  - `ApproverAnchorChecked(bundle, limitToDids, purpose, excludedDids...) (verify.ApproverTrustAnchor,
+    error)` reports an offline-intent anchor without a DID restriction and malformed
+    `controllerKeys` with the reference's messages; `ApproverAnchor` keeps failing closed (empty
+    anchor) and `UseOfflineApproval` uses the checked form. Excluded identities' merged keys are
+    deduplicated as in the reference.
+  - `RequirementFor` refuses a `requesterCannotApprove` rule when no requester DID is supplied
+    (DIV §5a.4), and validates `requesterControllers` only for such a rule, as the reference does.
+  - `VerifyTrustBundle` checks in the reference's order (tenantId right after type/version;
+    `controllerKeys`, then `requesterControllers`, before policy), decodes JWS segments as strict
+    base64url, reports the pinned key's type before parsing it, renders `alg` as JavaScript does,
+    and formats the bundle age with `toFixed(1)` rounding.
+  - Refusal texts aligned with the reference: challenge creation (tenant, unresolvable rule,
+    delegation tenant), challenge decoding (version/tenant shape problems, `type` display), legacy
+    v1 signing, and trust-anchor parsing (`undefined` for absent fields, tenantId checked before
+    label/exportedAt, array entries read as objects).
+  - Delegation files that are JSON null/arrays/scalars, bare or wrapped in `{"receipt": …}`, are
+    reported unreadable; pending records need only a string nonce.
+
+- `OfflineApprovalOptions` carries no credential-issuer option: offline exclusions come from the
+  bundle's `requesterControllers` (DIV §5a.4). Trust bundles accept repeated DIDs in policy
+  exclusion sets, and `RequirementFor` returns policy exclusions sorted and deduplicated.
+- Offline four-eyes approvals bind the requester's signed controller snapshot and optional
+  credential issuer into verification; exclusion-set floors prevent downgraded receipts.
+  `ApproverAnchor` resolves every bundle approver's keys, takes optional excluded DIDs and merges
+  their signed `controllerKeys`; `VerifyTrustBundle` refuses malformed `controllerKeys`.
 
 ## [2.1.0]
 

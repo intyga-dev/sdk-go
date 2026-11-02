@@ -25,9 +25,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	verify "github.com/intyga-dev/sdk-go/v2/verify"
 )
@@ -83,6 +85,7 @@ type BundlePolicy struct {
 
 // TrustBundle is the verified payload of a div-trust-bundle-v1 JWS.
 type TrustBundle struct {
+	// V is 1, or 2 exactly when some policy entry carries RequireEnrolledDevice (DIV §5a.4).
 	V         int              `json:"v"`
 	Type      string           `json:"type"`
 	TenantID  string           `json:"tenantId"`
@@ -90,9 +93,13 @@ type TrustBundle struct {
 	Approvers []BundleApprover `json:"approvers"`
 	Policy    []BundlePolicy   `json:"policy"`
 	// UnmatchedActionPolicy is "DENY" or "BASELINE".
-	UnmatchedActionPolicy string `json:"unmatchedActionPolicy"`
-	IssuedAt              string `json:"issuedAt"`
-	ExpiresAt             string `json:"expiresAt"`
+	UnmatchedActionPolicy string               `json:"unmatchedActionPolicy"`
+	IssuedAt              string               `json:"issuedAt"`
+	ExpiresAt             string               `json:"expiresAt"`
+	RequesterControllers  *map[string][]string `json:"requesterControllers,omitempty"`
+	// ControllerKeys are signed key facts for exclusions only: they let a verifier refuse a known
+	// key of an excluded identity (DIV §4.4.6) and never expand eligible approvers or their keys.
+	ControllerKeys *map[string][]string `json:"controllerKeys,omitempty"`
 }
 
 // BundleWebAuthn carries expectations pinned by the bundle signature, never by the receipt.
@@ -128,7 +135,9 @@ func VerifyTrustBundle(jws string, gatewayJWK json.RawMessage, asOf time.Time) (
 	if len(parts) != 3 {
 		return nil, errors.New("trust bundle is not a compact JWS")
 	}
-	headerBytes, err := decodeBase64URL(parts[0])
+	// Strict base64url, as the reference decodes every JWS segment: a character outside the alphabet
+	// is refused, never skipped.
+	headerBytes, err := decodeStrictBase64URL(parts[0])
 	if err != nil || !json.Valid(headerBytes) {
 		return nil, errors.New("trust bundle header is not JSON")
 	}
@@ -139,7 +148,7 @@ func VerifyTrustBundle(jws string, gatewayJWK json.RawMessage, asOf time.Time) (
 	if alg, present := fields["alg"]; alg != "RS256" {
 		shown := "(none)"
 		if present && alg != nil {
-			shown = fmt.Sprint(alg)
+			shown = jsDisplay(alg)
 		}
 		return nil, fmt.Errorf("trust bundle alg must be RS256, got %s", shown)
 	}
@@ -148,13 +157,13 @@ func VerifyTrustBundle(jws string, gatewayJWK json.RawMessage, asOf time.Time) (
 	if err != nil {
 		return nil, err
 	}
-	sig, err := decodeBase64URL(parts[2])
+	sig, err := decodeStrictBase64URL(parts[2])
 	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
 	if err != nil || rsa.VerifyPKCS1v15(key, crypto.SHA256, digest[:], sig) != nil {
 		return nil, errors.New("trust bundle signature does not verify against the pinned gateway key")
 	}
 
-	payload, err := decodeBase64URL(parts[1])
+	payload, err := decodeStrictBase64URL(parts[1])
 	if err != nil || !json.Valid(payload) {
 		return nil, errors.New("trust bundle payload is not JSON")
 	}
@@ -207,8 +216,8 @@ func CheckTrustBundleFreshness(bundle *TrustBundle, asOf time.Time) error {
 	}
 	const dayMillis = 86_400_000
 	if age := now - issued; age > MaxTrustBundleAgeDays*dayMillis {
-		return fmt.Errorf("trust bundle is %.1f days old, over the %d-day maximum — export a fresh one",
-			float64(age)/dayMillis, MaxTrustBundleAgeDays)
+		return fmt.Errorf("trust bundle is %s days old, over the %d-day maximum — export a fresh one",
+			jsToFixed1(float64(age)/dayMillis), MaxTrustBundleAgeDays)
 	}
 	return nil
 }
@@ -256,28 +265,64 @@ func LoadTrustBundle(dir string, asOf time.Time) (*TrustBundle, error) {
 // passkeys satisfy a 3-of-N quorum alone.
 //
 // limitToDids narrows the eligible set; nil means every approver for BundleAnchorOrdinary (an empty,
-// non-nil slice narrows to nobody). BundleAnchorOfflineIntent requires an explicit DID restriction;
-// nil returns an empty anchor so every offline key in a tenant bundle cannot become eligible for one
-// action merely because its caller omitted the action's approver set.
-func ApproverAnchor(bundle *TrustBundle, limitToDids []string, purpose BundleAnchorPurpose) verify.ApproverTrustAnchor {
+// non-nil slice narrows to nobody). BundleAnchorOfflineIntent requires an explicit DID restriction, so
+// every offline key in a tenant bundle cannot become eligible for one action merely because its caller
+// omitted the action's approver set.
+//
+// Eligibility is limitToDids alone, but the resolver knows the keys of EVERY bundle approver, so the
+// verifier can refuse a witness that reuses an excluded identity's key under an eligible alias
+// (DIV §4.4.6). excludedDids are the identities the signed requirement bars (excludedSignerDids, and
+// under requesterCannotApprove the requester and its credential issuer): their ControllerKeys facts
+// are merged into what the resolver returns for them, never into an eligible approver's keys.
+//
+// ApproverAnchor FAILS CLOSED: where ApproverAnchorChecked returns an error — an offline-intent
+// anchor without a DID restriction, or malformed ControllerKeys — it returns an empty anchor that
+// trusts nobody. Prefer ApproverAnchorChecked, which reports why.
+func ApproverAnchor(bundle *TrustBundle, limitToDids []string, purpose BundleAnchorPurpose, excludedDids ...string) verify.ApproverTrustAnchor {
+	anchor, err := ApproverAnchorChecked(bundle, limitToDids, purpose, excludedDids...)
+	if err != nil {
+		return verify.ApproverTrustAnchor{ResolveKeys: func(string) []string { return nil }}
+	}
+	return anchor
+}
+
+// ApproverAnchorChecked is ApproverAnchor with the refusals the reference throws returned as errors,
+// with the reference's messages: "offline-intent anchors require an explicit eligible DID restriction"
+// (checked first), and "Malformed controller key facts" whenever ControllerKeys is present and
+// malformed, whichever DIDs are excluded.
+func ApproverAnchorChecked(bundle *TrustBundle, limitToDids []string, purpose BundleAnchorPurpose, excludedDids ...string) (verify.ApproverTrustAnchor, error) {
+	if purpose == BundleAnchorOfflineIntent && limitToDids == nil {
+		return verify.ApproverTrustAnchor{}, errors.New("offline-intent anchors require an explicit eligible DID restriction")
+	}
 	var order []string
 	byDID := map[string][]string{}
-	if purpose == BundleAnchorOfflineIntent && limitToDids == nil {
-		return verify.ApproverTrustAnchor{DIDs: order, ResolveKeys: func(string) []string { return nil }}
-	}
 	if bundle != nil {
 		for _, a := range bundle.Approvers {
-			if limitToDids != nil && !containsString(limitToDids, a.DID) {
-				continue
-			}
 			keys := append([]string(nil), a.PublicKeys...)
 			if purpose == BundleAnchorOfflineIntent {
 				keys = append(keys, a.OfflinePublicKeys...)
 			}
-			if _, seen := byDID[a.DID]; !seen {
+			// A DID listed twice resolves to its LAST entry's keys, as the reference's Map does.
+			byDID[a.DID] = keys
+			if limitToDids != nil && !containsString(limitToDids, a.DID) {
+				continue
+			}
+			if !containsString(order, a.DID) {
 				order = append(order, a.DID)
 			}
-			byDID[a.DID] = keys
+		}
+		if bundle.ControllerKeys != nil {
+			if !validControllerKeys(*bundle.ControllerKeys) {
+				return verify.ApproverTrustAnchor{}, errors.New("Malformed controller key facts")
+			}
+			for _, did := range excludedDids {
+				facts, ok := (*bundle.ControllerKeys)[did]
+				if !ok || facts == nil {
+					continue
+				}
+				// The union, deduplicated as the reference's Set is — the existing keys included.
+				byDID[did] = uniqueStrings(append(append([]string(nil), byDID[did]...), facts...))
+			}
 		}
 	}
 	return verify.ApproverTrustAnchor{
@@ -287,9 +332,9 @@ func ApproverAnchor(bundle *TrustBundle, limitToDids []string, purpose BundleAnc
 			if !ok {
 				return nil
 			}
-			return append([]string(nil), keys...)
+			return append([]string{}, keys...)
 		},
-	}
+	}, nil
 }
 
 // RequirementFor resolves the approval requirement for an action from the bundle's offline policy
@@ -299,15 +344,17 @@ func ApproverAnchor(bundle *TrustBundle, limitToDids []string, purpose BundleAnc
 // a rule. It reports false — a refusal, with no default to fall back on — when the bundle is not a
 // valid v1 bundle, the action is unmatched, the policy conflicts, the rule names fewer distinct
 // approvers than its quorum, or the rule uses a control an offline ceremony cannot reproduce
-// (requireAttestedRequester, allowedIssuers, escalation, an auto-approve requester).
-func RequirementFor(bundle *TrustBundle, actionType, display string) (ResolvedRequirement, bool) {
+// (requireAttestedRequester, allowedIssuers, escalation, an auto-approve requester). A rule with
+// requesterCannotApprove also reports false unless exactly one requester DID is given and the
+// bundle's signed requesterControllers has an entry for it (DIV §5a.4).
+func RequirementFor(bundle *TrustBundle, actionType, display string, requesterDID ...string) (ResolvedRequirement, bool) {
 	_ = display // never an authorization input
-	if bundle == nil || bundle.V != 1 || bundle.Type != DivTrustBundleType ||
+	if bundle == nil || (bundle.V != 1 && bundle.V != 2) || bundle.Type != DivTrustBundleType ||
 		(bundle.UnmatchedActionPolicy != "DENY" && bundle.UnmatchedActionPolicy != "BASELINE") {
 		return ResolvedRequirement{}, false
 	}
 	for _, p := range bundle.Policy {
-		if !validBundlePolicy(p) {
+		if !validBundlePolicy(p, bundle.V) {
 			return ResolvedRequirement{}, false
 		}
 	}
@@ -324,8 +371,15 @@ func RequirementFor(bundle *TrustBundle, actionType, display string) (ResolvedRe
 		return ResolvedRequirement{}, false
 	}
 	aaguids := append([]string{}, winner.AllowedAaguids...)
+	// Sorted and deduplicated, as in the reference: the SET is the policy.
+	var policyExcluded *[]string
+	if winner.ExcludedSignerDIDs != nil {
+		excluded := uniqueStrings(append([]string{}, (*winner.ExcludedSignerDIDs)...))
+		sort.Slice(excluded, func(i, j int) bool { return utf16Less(excluded[i], excluded[j]) })
+		policyExcluded = &excluded
+	}
 	approvers := append([]string{}, winner.ApproverDids...)
-	return ResolvedRequirement{
+	resolved := ResolvedRequirement{
 		Requirement: verify.ApprovalRequirement{
 			// Fits an int: it is at most the number of distinct approvers, checked above.
 			RequiredApprovals:      int(max(1, winner.RequiredApprovals)),
@@ -333,14 +387,47 @@ func RequirementFor(bundle *TrustBundle, actionType, display string) (ResolvedRe
 			AllowedAaguids:         aaguids,
 			RequesterCannotApprove: winner.RequesterCannotApprove,
 			SignerClass:            "human",
+			ExcludedSignerDIDs:     policyExcluded,
+			// Carried, never dropped: the offline ceremony refuses it explicitly (DIV §5a.3 step 4)
+			// and a relying party's step-3d floor built from this requirement keeps demanding it.
+			RequireEnrolledDevice: winner.RequireEnrolledDevice,
 		},
 		ApproverDids: approvers,
-	}, true
+	}
+	if resolved.Requirement.RequesterCannotApprove {
+		// DIV §5a.4: a four-eyes requirement is incomplete without the requester's controllers, so it
+		// is refused when no requester is given, exactly as when its controller entry is missing —
+		// the rule's own exclusions alone would be the requester-only fallback the spec rules out.
+		if len(requesterDID) != 1 || bundle.RequesterControllers == nil {
+			return ResolvedRequirement{}, false
+		}
+		for requester, controllers := range *bundle.RequesterControllers {
+			if !validBundleDID(requester) || !allBundleDIDs(controllers) {
+				return ResolvedRequirement{}, false
+			}
+		}
+		controllers, present := (*bundle.RequesterControllers)[requesterDID[0]]
+		if !present {
+			return ResolvedRequirement{}, false
+		}
+		excluded := append([]string{}, controllers...)
+		if resolved.Requirement.ExcludedSignerDIDs != nil {
+			excluded = append(excluded, (*resolved.Requirement.ExcludedSignerDIDs)...)
+		}
+		excluded = uniqueStrings(excluded)
+		sort.Slice(excluded, func(i, j int) bool { return utf16Less(excluded[i], excluded[j]) })
+		resolved.Requirement.ExcludedSignerDIDs = &excluded
+	}
+	return resolved, true
 }
 
 // validBundlePolicy is the typed form of the reference's validBundlePolicy: a typed entry always has
-// every field, so what remains is the value constraints.
-func validBundlePolicy(p BundlePolicy) bool {
+// every field, so what remains is the value constraints. A typed entry carries RequireEnrolledDevice
+// only as true, which version 1 never admits (DIV §5a.4).
+func validBundlePolicy(p BundlePolicy, version int) bool {
+	if p.RequireEnrolledDevice && version != 2 {
+		return false
+	}
 	if p.SignerClass != "human" || jsTrim(p.ActionPattern) == "" ||
 		p.RequiredApprovals < 1 || p.RequiredApprovals > maxSafeInteger {
 		return false
@@ -351,6 +438,9 @@ func validBundlePolicy(p BundlePolicy) bool {
 				return false
 			}
 		}
+	}
+	if p.ExcludedSignerDIDs != nil && !allBundleDIDs(*p.ExcludedSignerDIDs) {
+		return false
 	}
 	if p.EscalateAfterSeconds != nil && (*p.EscalateAfterSeconds < 1 || *p.EscalateAfterSeconds > maxSafeInteger) {
 		return false
@@ -364,8 +454,25 @@ func validBundlePolicy(p BundlePolicy) bool {
 // rather than decoding the bytes a second time matters: encoding/json matches keys
 // case-insensitively, so a second decode could read a "Policy" that the checks never saw.
 func trustBundleFromJSON(obj map[string]interface{}) (*TrustBundle, error) {
-	if v, ok := obj["v"].(float64); obj["type"] != DivTrustBundleType || !ok || v != 1 {
+	// DIV §5a.4: version 2 exists only to carry requireEnrolledDevice, so a version 2 bundle with no
+	// such entry is an unsupported version — one policy has one form, and the refusal (and its order)
+	// stays exactly what a version 1 reader reports for any unknown version.
+	deviceRule := false
+	if entries, ok := obj["policy"].([]interface{}); ok {
+		for _, entry := range entries {
+			if m, ok := entry.(map[string]interface{}); ok && m["requireEnrolledDevice"] == true {
+				deviceRule = true
+			}
+		}
+	}
+	v, ok := obj["v"].(float64)
+	if obj["type"] != DivTrustBundleType || !ok || (v != 1 && !(v == 2 && deviceRule)) {
 		return nil, errors.New("unsupported trust bundle type or version")
+	}
+	version := int(v)
+	tenantID, ok := obj["tenantId"].(string)
+	if !ok || tenantID == "" {
+		return nil, errors.New("trust bundle tenantId must be a non-empty string")
 	}
 	var webauthn *BundleWebAuthn
 	if raw, present := obj["webauthn"]; present {
@@ -407,26 +514,57 @@ func trustBundleFromJSON(obj map[string]interface{}) (*TrustBundle, error) {
 			}
 		}
 	}
+	var controllerKeys *map[string][]string
+	if raw, present := obj["controllerKeys"]; present {
+		mapping, ok := raw.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("trust bundle carries malformed controller key facts")
+		}
+		parsed := map[string][]string{}
+		for did, value := range mapping {
+			keys, ok := nonEmptyStrings(value)
+			if !ok || !validBundleDID(did) {
+				return nil, errors.New("trust bundle carries malformed controller key facts")
+			}
+			parsed[did] = keys
+		}
+		controllerKeys = &parsed
+	}
+	var requesterControllers *map[string][]string
+	if raw, present := obj["requesterControllers"]; present {
+		mapping, ok := raw.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("trust bundle carries malformed requester controllers")
+		}
+		parsed := map[string][]string{}
+		for requester, value := range mapping {
+			if !validBundleDID(requester) {
+				return nil, errors.New("trust bundle carries malformed requester controllers")
+			}
+			controllers, ok := nonEmptyStrings(value)
+			if !ok || !allBundleDIDs(controllers) {
+				return nil, errors.New("trust bundle carries malformed requester controllers")
+			}
+			parsed[requester] = controllers
+		}
+		requesterControllers = &parsed
+	}
 	rawPolicy, ok := obj["policy"].([]interface{})
 	if !ok {
 		return nil, errors.New("trust bundle carries invalid or incomplete policy")
 	}
 	policy := make([]BundlePolicy, 0, len(rawPolicy))
 	for _, rp := range rawPolicy {
-		p, ok := bundlePolicyFromJSON(rp)
+		p, ok := bundlePolicyFromJSON(rp, version)
 		if !ok {
 			return nil, errors.New("trust bundle carries invalid or incomplete policy")
 		}
 		policy = append(policy, p)
 	}
-	tenantID, ok := obj["tenantId"].(string)
-	if !ok || tenantID == "" {
-		return nil, errors.New("trust bundle tenantId must be a non-empty string")
-	}
 	issuedAt, _ := obj["issuedAt"].(string)
 	expiresAt, _ := obj["expiresAt"].(string)
 	return &TrustBundle{
-		V:                     1,
+		V:                     version,
 		Type:                  DivTrustBundleType,
 		TenantID:              tenantID,
 		WebAuthn:              webauthn,
@@ -435,7 +573,45 @@ func trustBundleFromJSON(obj map[string]interface{}) (*TrustBundle, error) {
 		UnmatchedActionPolicy: unmatched,
 		IssuedAt:              issuedAt,
 		ExpiresAt:             expiresAt,
+		RequesterControllers:  requesterControllers,
+		ControllerKeys:        controllerKeys,
 	}, nil
+}
+
+// validControllerKeys mirrors the reference: every DID valid and every key a non-empty string.
+func validControllerKeys(mapping map[string][]string) bool {
+	for did, keys := range mapping {
+		if !validBundleDID(did) {
+			return false
+		}
+		for _, key := range keys {
+			if key == "" {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func validBundleDID(value string) bool {
+	if len(value) > 4096 || !utf8.ValidString(value) || !strings.HasPrefix(value, "did:") || len(value) == 4 {
+		return false
+	}
+	for _, r := range value {
+		if r <= 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+func allBundleDIDs(values []string) bool {
+	for _, value := range values {
+		if !validBundleDID(value) {
+			return false
+		}
+	}
+	return true
 }
 
 func approverFromJSON(raw interface{}) (BundleApprover, bool) {
@@ -464,13 +640,21 @@ func approverFromJSON(raw interface{}) (BundleApprover, bool) {
 
 // bundlePolicyFromJSON is the reference's validBundlePolicy on the JSON value, plus the conversion.
 // Every field of a v1 entry is required; the nullable ones must be present as null.
-func bundlePolicyFromJSON(raw interface{}) (BundlePolicy, bool) {
+func bundlePolicyFromJSON(raw interface{}, version int) (BundlePolicy, bool) {
 	p, ok := raw.(map[string]interface{})
 	if !ok || p["signerClass"] != "human" {
 		return BundlePolicy{}, false
 	}
 	var out BundlePolicy
 	out.SignerClass = "human"
+	// DIV §5a.4: version 2 admits `requireEnrolledDevice: true` and nothing else under that key; a
+	// version 1 bundle never carries it, so an older reader cannot meet it read as weaker.
+	if value, present := p["requireEnrolledDevice"]; present {
+		if version != 2 || value != true {
+			return BundlePolicy{}, false
+		}
+		out.RequireEnrolledDevice = true
+	}
 	pattern, ok := p["actionPattern"].(string)
 	if !ok || jsTrim(pattern) == "" {
 		return BundlePolicy{}, false
@@ -503,6 +687,14 @@ func bundlePolicyFromJSON(raw interface{}) (BundlePolicy, bool) {
 			return BundlePolicy{}, false
 		}
 		*dst = v
+	}
+	if rawExcluded, present := p["excludedSignerDids"]; present {
+		excluded, ok := nonEmptyStrings(rawExcluded)
+		// A set: a repeated DID is accepted, as in the reference, and deduplicated when signed.
+		if !ok || !allBundleDIDs(excluded) {
+			return BundlePolicy{}, false
+		}
+		out.ExcludedSignerDIDs = &excluded
 	}
 	escalate, present := p["escalateAfterSeconds"]
 	if !present {
@@ -600,18 +792,19 @@ func safeInteger(raw interface{}) (int64, bool) {
 }
 
 func rsaKeyFromJWK(raw json.RawMessage) (*rsa.PublicKey, error) {
+	// RS256 means an RSA key. A pinned EC key would otherwise have the KEY choose the algorithm —
+	// the confusion the alg check exists to prevent. Checked on the generic value, as the reference
+	// reads `kty`: a key that is not even an object is "not an RSA JWK", like one with another kty.
+	var generic map[string]interface{}
+	if err := json.Unmarshal(raw, &generic); err != nil || generic["kty"] != "RSA" {
+		return nil, errors.New("pinned gateway key must be an RSA JWK")
+	}
 	var jwk struct {
-		Kty string `json:"kty"`
-		N   string `json:"n"`
-		E   string `json:"e"`
+		N string `json:"n"`
+		E string `json:"e"`
 	}
 	if err := json.Unmarshal(raw, &jwk); err != nil {
 		return nil, errors.New("pinned gateway key is unusable: not a JSON Web Key")
-	}
-	// RS256 means an RSA key. A pinned EC key would otherwise have the KEY choose the algorithm —
-	// the confusion the alg check exists to prevent.
-	if jwk.Kty != "RSA" {
-		return nil, errors.New("pinned gateway key must be an RSA JWK")
 	}
 	n, err := decodeBase64URL(jwk.N)
 	if err != nil || len(n) == 0 {
@@ -727,6 +920,76 @@ func distinctStrings(list []string) []string {
 			seen[s] = true
 			out = append(out, s)
 		}
+	}
+	return out
+}
+
+// jsDisplay renders a decoded JSON value as JavaScript's String(value) does, for refusal text that
+// must read the same in every SDK: numbers in JavaScript's Number#toString form, arrays joined with
+// commas, objects as "[object Object]".
+func jsDisplay(v interface{}) string {
+	switch x := v.(type) {
+	case nil:
+		return "null"
+	case string:
+		return x
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case float64:
+		return jsNumber(x)
+	case []interface{}:
+		parts := make([]string, len(x))
+		for i, e := range x {
+			if e != nil {
+				parts[i] = jsDisplay(e)
+			}
+		}
+		return strings.Join(parts, ",")
+	case map[string]interface{}:
+		return "[object Object]"
+	}
+	return fmt.Sprint(v)
+}
+
+// jsNumber is Number.prototype.toString for a finite double: plain digits in [1e-6, 1e21), the
+// shortest round-trip exponent form outside it.
+func jsNumber(f float64) string {
+	if f == 0 {
+		return "0"
+	}
+	if abs := math.Abs(f); abs >= 1e21 || abs < 1e-6 {
+		s := strconv.FormatFloat(f, 'e', -1, 64)
+		mantissa, exp, _ := strings.Cut(s, "e")
+		sign := exp[:1]
+		digits := strings.TrimLeft(exp[1:], "0")
+		if digits == "" {
+			digits = "0"
+		}
+		return mantissa + "e" + sign + digits
+	}
+	return strconv.FormatFloat(f, 'f', -1, 64)
+}
+
+// jsToFixed1 is Number.prototype.toFixed(1): the exact binary value rounded to one decimal, a tie
+// going to the larger digit — not fmt's round-half-even, which prints 30.25 as "30.2" where the
+// reference prints "30.3".
+func jsToFixed1(x float64) string {
+	neg := x < 0
+	r := new(big.Rat).SetFloat64(math.Abs(x))
+	if r == nil {
+		return jsNumber(x)
+	}
+	r.Mul(r, big.NewRat(10, 1))
+	r.Add(r, big.NewRat(1, 2))
+	n := new(big.Int).Quo(r.Num(), r.Denom()) // floor: both are positive
+	tenths := new(big.Int)
+	whole, _ := new(big.Int).QuoRem(n, big.NewInt(10), tenths)
+	out := whole.String() + "." + tenths.String()
+	if neg && n.Sign() != 0 {
+		out = "-" + out
 	}
 	return out
 }

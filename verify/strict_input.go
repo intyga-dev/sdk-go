@@ -46,19 +46,7 @@ var errInvalidUTF8 = errors.New("a string is not valid UTF-8 (RFC 8785 / I-JSON 
 // P-256 keys compare by public point, so COSE and SPKI encodings of one credential match. Other
 // encodings compare by decoded bytes. Records the key when it is free.
 func sharedKeyProblem(counted map[string]string, key, identity string) string {
-	fingerprint := key
-	if b, err := decodeBase64Flexible(key); err == nil {
-		fingerprint = string(b)
-		var pub *ecdsa.PublicKey
-		if len(b) > 0 && b[0] == 0x30 {
-			pub, _ = parseSpkiP256(b)
-		} else {
-			pub, _ = parseCoseP256Key(b)
-		}
-		if pub != nil && pub.Curve == elliptic.P256() {
-			fingerprint = hex.EncodeToString(elliptic.Marshal(elliptic.P256(), pub.X, pub.Y))
-		}
-	}
+	fingerprint := signingKeyIdentity(key)
 	if owner, ok := counted[fingerprint]; ok && owner != identity {
 		return "signer " + identity + " verified under a key already counted for " + owner + "; two approver identities sharing one key count once (DIV §4.4.6)"
 	}
@@ -109,6 +97,94 @@ func canonicalTextProblem(text string) string {
 			return "canonicalPayload contains an unpaired UTF-16 surrogate escape, which is not I-JSON"
 		default:
 			i += 5
+		}
+	}
+	return ""
+}
+
+// signingKeyIdentity fingerprints a trusted key for the one-key-one-person rule (DIV §4.4.6). P-256
+// keys compare by public point, so COSE and SPKI encodings of one credential match; other encodings
+// compare by decoded bytes, and undecodable text by itself (signature verification fails closed).
+func signingKeyIdentity(key string) string {
+	fingerprint := key
+	if b, err := decodeBase64Flexible(key); err == nil {
+		fingerprint = string(b)
+		var pub *ecdsa.PublicKey
+		if len(b) > 0 && b[0] == 0x30 {
+			pub, _ = parseSpkiP256(b)
+		} else {
+			pub, _ = parseCoseP256Key(b)
+		}
+		if pub != nil && pub.Curve == elliptic.P256() {
+			fingerprint = hex.EncodeToString(elliptic.Marshal(elliptic.P256(), pub.X, pub.Y))
+		}
+	}
+	return fingerprint
+}
+
+// excludedIdentityDIDs is every identity the signed requirement bars from approving: the signed
+// excludedSignerDids plus, under requesterCannotApprove, the requester and its credential issuer.
+func excludedIdentityDIDs(requirement ApprovalRequirement, requester RequesterIdentity) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(did string) {
+		if !seen[did] {
+			seen[did] = true
+			out = append(out, did)
+		}
+	}
+	if requirement.ExcludedSignerDIDs != nil {
+		for _, did := range *requirement.ExcludedSignerDIDs {
+			add(did)
+		}
+	}
+	if requirement.RequesterCannotApprove {
+		add(requester.DID)
+		if requester.CredentialIssuerDID != nil {
+			add(*requester.CredentialIssuerDID)
+		}
+	}
+	return out
+}
+
+// resolveExcludedAnchorKeys asks a DID-mode anchor for one excluded DID's keys. A panicking resolver
+// reports ok=false: the caller refuses the receipt rather than ignoring the identity's keys, since a
+// lookup outage would otherwise let an eligible alias sign under an excluded identity's key. A
+// resolver that returns no keys is not a failure.
+func resolveExcludedAnchorKeys(anchor ApproverTrustAnchor, did string) (keys []string, ok bool) {
+	defer func() {
+		if recover() != nil {
+			keys, ok = nil, false
+		}
+	}()
+	if anchor.ResolveKeys != nil {
+		return anchor.ResolveKeys(did), true
+	}
+	if anchor.ResolveKey != nil {
+		if key := anchor.ResolveKey(did); key != "" {
+			return []string{key}, true
+		}
+	}
+	return nil, true
+}
+
+// seedExcludedSigningKeys pre-counts every key the anchor resolves for an excluded identity, so a
+// witness verifying under one of them — even through an eligible alias DID — is refused as a shared
+// key (DIV §4.4.6). Eligibility stays anchor.DIDs; the resolver may know keys for excluded identities.
+// It returns a refusal reason when the resolver fails for an excluded identity, as in the reference.
+func seedExcludedSigningKeys(counted map[string]string, anchor ApproverTrustAnchor, requirement ApprovalRequirement, requester RequesterIdentity) string {
+	if len(anchor.PublicKeys) > 0 || len(anchor.DIDs) == 0 || (anchor.ResolveKey == nil && anchor.ResolveKeys == nil) {
+		return ""
+	}
+	for _, did := range excludedIdentityDIDs(requirement, requester) {
+		keys, ok := resolveExcludedAnchorKeys(anchor, did)
+		if !ok {
+			return "could not resolve keys for excluded identity " + did + "; refusing rather than ignoring its keys (DIV §4.4.6)"
+		}
+		for _, key := range keys {
+			if key != "" {
+				counted[signingKeyIdentity(key)] = "excluded identity " + did
+			}
 		}
 	}
 	return ""

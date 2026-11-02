@@ -189,8 +189,18 @@ and the on-disk layout are a shared format, pinned by the conformance vectors in
   `EncodeSignatureEnvelope`/`DecodeSignatureEnvelope`, `SignChallengeEnvelope` (the approver's side),
   `AssembleOfflineReceipt`, `FileRedemptionStore`, `PendingApprovals`/`ClearPendingApproval`.
 
-`ApproverAnchor` requires a non-nil eligible DID slice for `BundleAnchorOfflineIntent`; nil returns
-an empty anchor. `BundleAnchorOrdinary` retains nil as an intentional unrestricted anchor.
+`ApproverAnchorChecked` returns the reference's errors: an offline-intent anchor without an
+explicit eligible DID slice ("offline-intent anchors require an explicit eligible DID restriction")
+and malformed `controllerKeys` ("Malformed controller key facts"). `ApproverAnchor` is the same
+with those refusals failing closed as an empty anchor that trusts nobody. `BundleAnchorOrdinary`
+retains nil as an intentional unrestricted anchor. `RequirementFor` refuses a four-eyes rule unless a
+requester DID with a signed `requesterControllers` entry is given (DIV §5a.4).
+
+A rule with `requireEnrolledDevice` (DIV §4.3.2, version 2 bundles only) resolves with the field set,
+but no offline challenge can be created under it and no delegation satisfies it: an offline key is
+never an enrolled approver device key. For online receipts under such a policy, pass
+`TrustAnchorEnrolledDeviceKeys(file)` from a parsed online trust-anchor file as
+`verify.Expected.EnrolledDeviceKeys`.
 
 ## Also available in
 - TypeScript — [`@intyga/sdk`](https://github.com/intyga-dev/sdk)

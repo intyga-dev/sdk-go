@@ -150,6 +150,111 @@ type ApprovalRequirement struct {
 	AllowedAaguids         []string `json:"allowedAaguids"`
 	RequesterCannotApprove bool     `json:"requesterCannotApprove"`
 	SignerClass            string   `json:"signerClass"`
+	// ExcludedSignerDIDs is nil when the field was absent from historical signed bytes. A non-nil
+	// empty slice is an explicitly signed empty set and must remain present during reconstruction.
+	ExcludedSignerDIDs *[]string `json:"excludedSignerDids,omitempty"`
+	// RequireEnrolledDevice is DIV §4.3.2 "Enrolled approver devices": serialized only when true, and
+	// then as the literal `true` (absence is "not required", so historical bytes are unchanged). Defined
+	// only for div-intent-verification payloads and never together with a hardware requirement. Under
+	// it only an ES256 witness under one of the caller's Expected.EnrolledDeviceKeys counts.
+	RequireEnrolledDevice bool `json:"requireEnrolledDevice,omitempty"`
+	// excludedSignerDIDsNull records a present-but-null excludedSignerDids, which encoding/json
+	// would otherwise collapse into the nil pointer of an absent field (DIV §4.3.2: refused, not dropped).
+	excludedSignerDIDsNull bool
+	// requireEnrolledDeviceMalformed records a present requireEnrolledDevice whose value is anything
+	// but the literal `true` (false, null, a string, ...). A bool cannot tell present-false from
+	// absent, and DIV §4.3.2 refuses the former rather than dropping it.
+	requireEnrolledDeviceMalformed bool
+}
+
+// UnmarshalJSON keeps a present-but-null excludedSignerDids distinguishable from an absent one, and a
+// present requireEnrolledDevice other than `true` distinguishable from an absent one.
+func (r *ApprovalRequirement) UnmarshalJSON(data []byte) error {
+	type requirementFields ApprovalRequirement
+	// The outer field shadows the embedded bool (shallower depth wins in encoding/json), so a
+	// non-boolean value is captured for refusal instead of failing the whole payload parse.
+	var decoded struct {
+		requirementFields
+		RequireEnrolledDevice json.RawMessage `json:"requireEnrolledDevice"`
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = ApprovalRequirement(decoded.requirementFields)
+	r.excludedSignerDIDsNull = jsonFieldIsNull(data, "excludedSignerDids")
+	r.RequireEnrolledDevice = false
+	r.requireEnrolledDeviceMalformed = false
+	if decoded.RequireEnrolledDevice != nil {
+		if strings.TrimSpace(string(decoded.RequireEnrolledDevice)) == "true" {
+			r.RequireEnrolledDevice = true
+		} else {
+			r.requireEnrolledDeviceMalformed = true
+		}
+	}
+	return nil
+}
+
+// DIV §5 step 3e refusal texts. Identical in every port (pinned by verifier-parity-vectors.json),
+// with the TypeScript API name expected.enrolledDeviceKeys rewritten to Go's.
+const (
+	EnrolledDeviceMalformedReason     = "requirement.requireEnrolledDevice must be omitted or true (DIV §4.3.2)"
+	EnrolledDeviceOrdinaryOnlyReason  = "requireEnrolledDevice is defined only for ordinary approval intents (DIV §4.3.2)"
+	EnrolledDeviceWithHardwareReason  = "requireEnrolledDevice cannot be combined with requireHardwareKey or allowedAaguids (DIV §4.3.2)"
+	EnrolledDeviceKeysRequiredReason  = "the signed policy requires an enrolled approver device; supply expected.EnrolledDeviceKeys from your own enrollment records (DIV §4.3.2)"
+	EnrolledDeviceKeysMalformedReason = "expected.EnrolledDeviceKeys must be an array of base64 public keys"
+)
+
+// enrolledDeviceStructureProblem is DIV §5 step 3e, structural half: the signed field is absent, or
+// exactly `true` on an ordinary intent with no hardware requirement. `ordinary` is whether the
+// payload type is div-intent-verification. Read from the parsed signed requirement, so `false` and
+// `null` are refused rather than dropped.
+func enrolledDeviceStructureProblem(requirement ApprovalRequirement, ordinary bool) string {
+	if requirement.requireEnrolledDeviceMalformed {
+		return EnrolledDeviceMalformedReason
+	}
+	if !requirement.RequireEnrolledDevice {
+		return ""
+	}
+	if !ordinary {
+		return EnrolledDeviceOrdinaryOnlyReason
+	}
+	if requirement.RequiresHardwareCredential() {
+		return EnrolledDeviceWithHardwareReason
+	}
+	return ""
+}
+
+// enrolledDeviceFingerprints is DIV §5 step 3e, list half: the caller's enrolled device keys as key
+// fingerprints (so SPKI and COSE spellings of one key match, like the one-key-one-person rule), or a
+// refusal reason. Only consulted under a signed requireEnrolledDevice; a malformed list is refused
+// even then, never read as "no list". A nil and an empty list are both "no list".
+func enrolledDeviceFingerprints(keys []string) (map[string]bool, string) {
+	if keys == nil {
+		return nil, EnrolledDeviceKeysRequiredReason
+	}
+	for _, key := range keys {
+		if key == "" {
+			return nil, EnrolledDeviceKeysMalformedReason
+		}
+	}
+	if len(keys) == 0 {
+		return nil, EnrolledDeviceKeysRequiredReason
+	}
+	out := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		out[signingKeyIdentity(key)] = true
+	}
+	return out, ""
+}
+
+// jsonFieldIsNull reports whether object `data` carries `key` with an explicit null value.
+func jsonFieldIsNull(data []byte, key string) bool {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(data, &fields) != nil {
+		return false
+	}
+	raw, ok := fields[key]
+	return ok && strings.TrimSpace(string(raw)) == "null"
 }
 
 // RequiresHardwareCredential: RequireHardwareKey, or a non-empty AllowedAaguids model allowlist. A bare
@@ -170,7 +275,7 @@ func checkSignerClass(requirement ApprovalRequirement) (bool, string) {
 		return false, "the signed requirement is missing signerClass (DIV §4.3.2)"
 	}
 	if !knownSignerClasses[requirement.SignerClass] {
-		return false, fmt.Sprintf("the signed requirement declares signerClass %q, which this verifier does not recognize — refusing rather than treating it as human-approved (DIV §4.3.2)", requirement.SignerClass)
+		return false, "the signed requirement declares signerClass \"" + requirement.SignerClass + "\", which this verifier does not recognize — refusing rather than treating it as human-approved (DIV §4.3.2)"
 	}
 	return true, ""
 }
@@ -208,6 +313,46 @@ func checkQuorumMinimum(requirement ApprovalRequirement) (bool, string) {
 	return true, ""
 }
 
+func checkExcludedSigners(requirement ApprovalRequirement, requester RequesterIdentity) (bool, string) {
+	// Present-but-null is malformed, not absent (DIV §4.3.2), exactly as the reference refuses it.
+	if requester.credentialIssuerDIDNull ||
+		(requester.CredentialIssuerDID != nil && !validOptionalDID(*requester.CredentialIssuerDID)) {
+		return false, "signed requester.credentialIssuerDid must be a non-empty DID"
+	}
+	if requirement.excludedSignerDIDsNull {
+		return false, "signed requirement.excludedSignerDids must be an array of valid DIDs"
+	}
+	if requirement.ExcludedSignerDIDs == nil {
+		return true, ""
+	}
+	// Every entry's validity first, then repeats — the reference's order and texts.
+	for _, did := range *requirement.ExcludedSignerDIDs {
+		if !validOptionalDID(did) {
+			return false, "signed requirement.excludedSignerDids must be an array of valid DIDs"
+		}
+	}
+	seen := map[string]bool{}
+	for _, did := range *requirement.ExcludedSignerDIDs {
+		if seen[did] {
+			return false, "signed requirement.excludedSignerDids must not contain duplicates"
+		}
+		seen[did] = true
+	}
+	return true, ""
+}
+
+func validOptionalDID(value string) bool {
+	if len(value) > 4096 || !utf8.ValidString(value) || !strings.HasPrefix(value, "did:") || len(value) == 4 {
+		return false
+	}
+	for _, r := range value {
+		if r <= 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
 // RequirementFloor is the MINIMUM approval requirement the relying party's own policy demands for
 // this action (DIV §5 step 3d). The signed requirement is authored by whoever composed the bytes the
 // approvers signed — the issuer, or any one approver composing their own payload — so its signature
@@ -224,6 +369,60 @@ type RequirementFloor struct {
 	RequesterCannotApprove bool `json:"requesterCannotApprove"`
 	// When true, the signed requirement must also demand a hardware key.
 	RequireHardwareKey bool `json:"requireHardwareKey"`
+	// When true, the signed requirement must also demand an enrolled approver device (DIV §4.3.2).
+	RequireEnrolledDevice bool `json:"requireEnrolledDevice"`
+	// When present, the signed exclusion set must be present and include every DID in this floor.
+	ExcludedSignerDIDs *[]string `json:"excludedSignerDids,omitempty"`
+	// malformedFlag records a floor decoded from JSON whose boolean flag was present but not a JSON
+	// boolean (null, "yes", ...). Such a floor fails CLOSED as malformed, as in the reference, rather
+	// than reading the flag as false.
+	malformedFlag bool
+}
+
+// UnmarshalJSON decodes a floor from your own policy configuration. A flag that is present but not a
+// JSON boolean marks the floor malformed (refused at verification) instead of silently meaning false.
+func (f *RequirementFloor) UnmarshalJSON(data []byte) error {
+	type floorFields RequirementFloor
+	var decoded struct {
+		floorFields
+		RequesterCannotApprove json.RawMessage `json:"requesterCannotApprove"`
+		RequireHardwareKey     json.RawMessage `json:"requireHardwareKey"`
+		RequireEnrolledDevice  json.RawMessage `json:"requireEnrolledDevice"`
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*f = RequirementFloor(decoded.floorFields)
+	f.malformedFlag = false
+	flag := func(raw json.RawMessage) bool {
+		if raw == nil {
+			return false
+		}
+		switch strings.TrimSpace(string(raw)) {
+		case "true":
+			return true
+		case "false":
+			return false
+		}
+		f.malformedFlag = true
+		return false
+	}
+	f.RequesterCannotApprove = flag(decoded.RequesterCannotApprove)
+	f.RequireHardwareKey = flag(decoded.RequireHardwareKey)
+	f.RequireEnrolledDevice = flag(decoded.RequireEnrolledDevice)
+	return nil
+}
+
+// nonceRequiredReason refuses an omitted expected nonce, immediately before the nonce comparison.
+const nonceRequiredReason = "expected.Nonce is required — it must be the challenge YOU issued (DIV §5 step 10)"
+
+// keyOnlyFourEyesReason refuses a signed four-eyes rule or exclusion set against a key-set anchor.
+const keyOnlyFourEyesReason = "requesterCannotApprove requires a DID-mode trust anchor; key-only mode cannot authenticate requester identity"
+
+// isUnset reports the zero anchor — no keys, no DIDs, no resolver — which is the reference's absent
+// expected.approvers.
+func (a ApproverTrustAnchor) isUnset() bool {
+	return a.PublicKeys == nil && a.DIDs == nil && a.ResolveKey == nil && a.ResolveKeys == nil
 }
 
 // WeakerRequirementReason is the reason stem every port uses for a signed requirement below the
@@ -236,8 +435,24 @@ func checkRequirementFloor(signed ApprovalRequirement, floor *RequirementFloor) 
 	if floor == nil {
 		return true, ""
 	}
-	if floor.RequiredApprovals < 1 {
-		return false, "expected.Requirement is malformed: RequiredApprovals must be an integer of at least 1"
+	// The reference's single malformed-floor text, then its order: exclusion coverage, quorum, the
+	// requester flag, the hardware flag, the enrolled-device flag. A repeated DID in the floor is accepted: it is a set the
+	// signed exclusions must cover.
+	malformed := floor.RequiredApprovals < 1 || floor.malformedFlag
+	if floor.ExcludedSignerDIDs != nil {
+		for _, did := range *floor.ExcludedSignerDIDs {
+			if !validOptionalDID(did) {
+				malformed = true
+			}
+		}
+	}
+	if malformed {
+		return false, "expected.Requirement is malformed: requiredApprovals must be an integer of at least 1 and the flags booleans"
+	}
+	if floor.ExcludedSignerDIDs != nil {
+		if signed.ExcludedSignerDIDs == nil || !stringSetContains(*signed.ExcludedSignerDIDs, *floor.ExcludedSignerDIDs) {
+			return false, WeakerRequirementReason + ": it omits a required signer exclusion"
+		}
 	}
 	if signed.RequiredApprovals < floor.RequiredApprovals {
 		return false, fmt.Sprintf("%s: it requires %d approval(s), the policy %d (DIV §5 step 3d)", WeakerRequirementReason, signed.RequiredApprovals, floor.RequiredApprovals)
@@ -248,7 +463,23 @@ func checkRequirementFloor(signed ApprovalRequirement, floor *RequirementFloor) 
 	if floor.RequireHardwareKey && !signed.RequireHardwareKey {
 		return false, WeakerRequirementReason + ": it does not require a hardware key (DIV §5 step 3d)"
 	}
+	if floor.RequireEnrolledDevice && !signed.RequireEnrolledDevice {
+		return false, WeakerRequirementReason + ": it does not require an enrolled approver device (DIV §5 step 3d)"
+	}
 	return true, ""
+}
+
+func stringSetContains(have, required []string) bool {
+	set := map[string]bool{}
+	for _, value := range have {
+		set[value] = true
+	}
+	for _, value := range required {
+		if !set[value] {
+			return false
+		}
+	}
+	return true
 }
 
 // evaluationTime resolves the instant and skew tolerance every time-based check in this package
@@ -267,8 +498,24 @@ func evaluationTime(opts VerifyOptions) (time.Time, time.Duration) {
 
 // RequesterIdentity defines who requested the action.
 type RequesterIdentity struct {
-	DID         string                `json:"did"`
-	Attestation *RequesterAttestation `json:"attestation"`
+	DID                 string                `json:"did"`
+	Attestation         *RequesterAttestation `json:"attestation"`
+	CredentialIssuerDID *string               `json:"credentialIssuerDid,omitempty"`
+	// credentialIssuerDIDNull records a present-but-null credentialIssuerDid, which a *string
+	// cannot tell apart from an absent one. The verifier refuses it (DIV §4.3.2).
+	credentialIssuerDIDNull bool
+}
+
+// UnmarshalJSON keeps a present-but-null credentialIssuerDid distinguishable from an absent one.
+func (r *RequesterIdentity) UnmarshalJSON(data []byte) error {
+	type requesterFields RequesterIdentity
+	var decoded requesterFields
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = RequesterIdentity(decoded)
+	r.credentialIssuerDIDNull = jsonFieldIsNull(data, "credentialIssuerDid")
+	return nil
 }
 
 // ApprovalReceipt is a DIV Proof Envelope: the signed canonical payload plus the signature
@@ -386,6 +633,13 @@ type Expected struct {
 	// themselves stated. Under a delegation pass the ORDINARY rule — the delegated quorum must already
 	// be at least as strict (DIV §5a.5). VerifyDelegation applies it to the sealing requirement.
 	Requirement *RequirementFloor `json:"requirement,omitempty"`
+	// EnrolledDeviceKeys are the enrolled approver device keys YOU trust (base64 SPKI or COSE), from
+	// your own enrollment records — e.g. a console trust-anchor export's enrolledDeviceKeys.
+	// Consulted only when the signed requirement sets requireEnrolledDevice: then a witness counts only
+	// if it is ES256 and verified under one of these keys, and verification is refused without the
+	// list (DIV §4.3.2). Each key must ALSO be a trusted approver key for its signer in Approvers;
+	// this list narrows, it never adds trust. Nil and empty both mean "no list".
+	EnrolledDeviceKeys []string `json:"enrolledDeviceKeys,omitempty"`
 }
 
 // TenantID returns caller-owned tenant context for verifier expectations. A pointer is required so
@@ -409,76 +663,6 @@ type ApproverTrustAnchor struct {
 	ResolveKeys func(did string) []string
 }
 
-// candidates returns the keys this witness may be accepted under, each tagged with the identity it
-// represents so a quorum counts distinct APPROVERS. In PublicKeys mode the identity is the key
-// itself: the receipt's signerDid is unverified there, and counting it would let one approver claim
-// to be three. The presented key is deliberately NOT compared against the trusted one — a mismatched
-// key simply fails to verify, and byte-equality is wrong for COSE, which has many valid encodings of
-// the same P-256 key.
-func (a ApproverTrustAnchor) candidates(signerDID string) ([][2]string, string) {
-	return a.candidatesRestricted(signerDID, nil)
-}
-
-// candidatesRestricted is candidates plus an optional narrowing to the identities a delegation names
-// (DIV §5a.6 step 3). Applied ON TOP of the trust anchor, never instead of it: a delegation says WHO
-// may approve, and the anchor still says which key is actually theirs.
-func (a ApproverTrustAnchor) candidatesRestricted(signerDID string, restrictTo []string) ([][2]string, string) {
-	if len(a.PublicKeys) > 0 {
-		// A delegation names identities, and in PublicKeys mode signerDID is an unverified string —
-		// enforcing DelegatedTo against it would be security theatre. Refuse rather than pretend.
-		if restrictTo != nil {
-			return nil, "a delegation names approver identities, so it requires a DID-mode trust anchor (DIDs + ResolveKeys); in PublicKeys mode signerDid is unverified and delegatedTo cannot be enforced"
-		}
-		out := make([][2]string, 0, len(a.PublicKeys))
-		for _, k := range a.PublicKeys {
-			out = append(out, [2]string{k, k})
-		}
-		return out, ""
-	}
-	if len(a.DIDs) == 0 || (a.ResolveKey == nil && a.ResolveKeys == nil) {
-		return nil, "expected.Approvers is required — the Approver key MUST come from your own trust policy, never from the receipt (DIV Invariant 3)"
-	}
-	found := false
-	for _, d := range a.DIDs {
-		if d == signerDID && signerDID != "" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return nil, fmt.Sprintf("signer %s is not an authorized approver", signerDID)
-	}
-	if restrictTo != nil {
-		named := false
-		for _, d := range restrictTo {
-			if d == signerDID {
-				named = true
-				break
-			}
-		}
-		if !named {
-			return nil, fmt.Sprintf("signer %s is not named in the delegation", signerDID)
-		}
-	}
-	var keys []string
-	if a.ResolveKeys != nil {
-		keys = a.ResolveKeys(signerDID)
-	} else if key := a.ResolveKey(signerDID); key != "" {
-		keys = []string{key}
-	}
-	out := make([][2]string, 0, len(keys))
-	for _, k := range keys {
-		if k != "" {
-			// All keys for one DID share that DID as their identity, so quorum still counts one approver.
-			out = append(out, [2]string{k, signerDID})
-		}
-	}
-	if len(out) == 0 {
-		return nil, fmt.Sprintf("no trusted key could be resolved for %s", signerDID)
-	}
-	return out, ""
-}
-
 // SelfCertifyingDID derives did:intyga:key:<base64url(sha256(decoded key bytes))>.
 func SelfCertifyingDID(publicKeyB64 string) string {
 	b, err := base64.StdEncoding.DecodeString(publicKeyB64)
@@ -493,40 +677,79 @@ func SelfCertifyingDID(publicKeyB64 string) string {
 }
 
 func candidateKeys(a ApproverTrustAnchor, w ApprovalWitness, restrict []string) ([][2]string, string) {
-	keys, reason := a.candidatesRestricted(w.SignerDID, restrict)
-	if len(keys) > 0 || !strings.HasPrefix(w.SignerDID, SelfCertifyingDIDPrefix) {
-		return keys, reason
-	}
+	// Step for step the reference's candidateKeys, refusal texts included.
 	if len(a.PublicKeys) > 0 {
-		return nil, reason
-	}
-	if restrict != nil {
-		named := false
-		for _, did := range restrict {
-			if did == w.SignerDID {
-				named = true
-			}
+		// A delegation names identities, and in PublicKeys mode signerDID is an unverified string —
+		// enforcing DelegatedTo against it would be security theatre. Refuse rather than pretend.
+		if restrict != nil {
+			return nil, "a delegation names approver identities, so it requires a DID-mode trust anchor (DIDs + ResolveKeys); in PublicKeys mode signerDid is unverified and delegatedTo cannot be enforced"
 		}
-		if !named {
-			return nil, reason
+		out := make([][2]string, 0, len(a.PublicKeys))
+		for _, k := range a.PublicKeys {
+			out = append(out, [2]string{k, k})
+		}
+		return out, ""
+	}
+	if a.PublicKeys != nil && a.DIDs == nil {
+		// An explicit, empty key allowlist: the reference's { publicKeys: [] }.
+		if restrict != nil {
+			return nil, "a delegation names approver identities, so it requires a DID-mode trust anchor (DIDs + ResolveKeys); in PublicKeys mode signerDid is unverified and delegatedTo cannot be enforced"
+		}
+		return nil, "trusted approver allowlist is empty"
+	}
+	signerDID := w.SignerDID
+	if signerDID == "" || !containsDID(a.DIDs, signerDID) {
+		shown := signerDID
+		if shown == "" {
+			shown = "(unknown)"
+		}
+		return nil, fmt.Sprintf("signer %s is not an authorized approver", shown)
+	}
+	if restrict != nil && !containsDID(restrict, signerDID) {
+		return nil, fmt.Sprintf("signer %s is not named in the delegation", signerDID)
+	}
+	// PRECEDENCE: the anchor's own key mapping always wins, self-certifying DID or not.
+	var resolved []string
+	if a.ResolveKeys != nil {
+		resolved = a.ResolveKeys(signerDID)
+	} else if a.ResolveKey != nil {
+		if key := a.ResolveKey(signerDID); key != "" {
+			resolved = []string{key}
 		}
 	}
-	allowed := false
-	for _, d := range a.DIDs {
-		if d == w.SignerDID {
-			allowed = true
+	out := make([][2]string, 0, len(resolved))
+	for _, k := range resolved {
+		if k != "" {
+			// All keys for one DID share that DID as their identity, so quorum still counts one approver.
+			out = append(out, [2]string{k, signerDID})
 		}
 	}
-	if !allowed {
-		return nil, reason
+	if len(out) > 0 {
+		return out, ""
 	}
-	if w.SignerPublicKey == "" {
-		return nil, "witness carries no public key to validate against self-certifying DID"
+	// Self-certifying fallback: with no mapped keys the pinned identifier itself is the commitment.
+	if strings.HasPrefix(signerDID, SelfCertifyingDIDPrefix) {
+		if w.SignerPublicKey == "" {
+			return nil, "witness carries no public key to validate against self-certifying " + signerDID
+		}
+		if SelfCertifyingDID(w.SignerPublicKey) != signerDID {
+			return nil, "witness public key does not hash to the pinned self-certifying DID (did:intyga:key), and the trust anchor names no keys for it"
+		}
+		return [][2]string{{w.SignerPublicKey, signerDID}}, ""
 	}
-	if SelfCertifyingDID(w.SignerPublicKey) != w.SignerDID {
-		return nil, "witness public key does not hash to the pinned self-certifying DID (did:intyga:key)"
+	if a.ResolveKeys == nil && a.ResolveKey == nil {
+		return nil, signerDID + " is not self-certifying (" + SelfCertifyingDIDPrefix + "…) and the trust anchor provides no ResolveKeys"
 	}
-	return [][2]string{{w.SignerPublicKey, w.SignerDID}}, ""
+	return nil, fmt.Sprintf("no trusted key could be resolved for %s", signerDID)
+}
+
+func containsDID(list []string, did string) bool {
+	for _, d := range list {
+		if d == did {
+			return true
+		}
+	}
+	return false
 }
 
 // ApprovalWitness is one approver's signature over the canonical payload.
@@ -750,7 +973,10 @@ func CanonicalIntentPayload(
 	expiresAt string,
 	tenantID ...string,
 ) (string, error) {
-	req, rq := canonicalCommon(requester, requirement)
+	req, rq, err := canonicalCommon(requester, requirement, true)
+	if err != nil {
+		return "", err
+	}
 	obj := map[string]interface{}{
 		"type":       DivIntentType,
 		"target":     target,
@@ -777,7 +1003,10 @@ func CanonicalIntentPayload(
 func CanonicalAgentIntentPayload(target, actionType, display string, params map[string]interface{},
 	requester RequesterIdentity, requirement ApprovalRequirement, nonce, exp string,
 	context map[string]interface{}, tenantID ...string) (string, error) {
-	req, rq := canonicalCommon(requester, requirement)
+	req, rq, err := canonicalCommon(requester, requirement, true)
+	if err != nil {
+		return "", err
+	}
 	obj := map[string]interface{}{
 		"type": DivIntentType, "target": target, "actionType": actionType,
 		"display": display, "params": params, "evidence": nil, "requester": req,
@@ -808,7 +1037,35 @@ func applyTenantBinding(obj map[string]interface{}, tenantID []string) error {
 // canonicalCommon builds the requester + requirement projection shared by all three builders. One
 // definition rather than three copies: these bytes are the contract, and a field added to one builder
 // but not the others is exactly the drift the golden vectors exist to catch.
-func canonicalCommon(requester RequesterIdentity, requirement ApprovalRequirement) (interface{}, interface{}) {
+//
+// ordinary is true only for div-intent-verification (ordinary and agent intents): the one payload
+// kind that may carry requireEnrolledDevice (DIV §4.3.2). Every other builder passes false so a
+// caller cannot sign a kind whose verifiers would refuse the field.
+func canonicalCommon(requester RequesterIdentity, requirement ApprovalRequirement, ordinary bool) (interface{}, interface{}, error) {
+	// The identity extensions are refused at canonicalization, as in the reference (NonCanonicalValue):
+	// a builder that emitted them would produce bytes no other port reproduces.
+	if requester.credentialIssuerDIDNull ||
+		(requester.CredentialIssuerDID != nil && !validOptionalDID(*requester.CredentialIssuerDID)) {
+		return nil, nil, errors.New("credentialIssuerDid must be a valid DID")
+	}
+	if requirement.excludedSignerDIDsNull {
+		return nil, nil, errors.New("excludedSignerDids must be a DID array")
+	}
+	if requirement.ExcludedSignerDIDs != nil {
+		for _, did := range *requirement.ExcludedSignerDIDs {
+			if !validOptionalDID(did) {
+				return nil, nil, errors.New("excludedSignerDids must be a DID array")
+			}
+		}
+	}
+	if requirement.RequireEnrolledDevice {
+		if !ordinary {
+			return nil, nil, errors.New(EnrolledDeviceOrdinaryOnlyReason)
+		}
+		if requirement.RequiresHardwareCredential() {
+			return nil, nil, errors.New(EnrolledDeviceWithHardwareReason)
+		}
+	}
 	var attestation interface{}
 	if requester.Attestation != nil {
 		attestation = map[string]interface{}{
@@ -829,16 +1086,37 @@ func canonicalCommon(requester RequesterIdentity, requirement ApprovalRequiremen
 	if aaguids == nil {
 		aaguids = []string{}
 	}
-	return map[string]interface{}{
-			"did":         requester.DID,
-			"attestation": attestation,
-		}, map[string]interface{}{
-			"requiredApprovals":      requirement.RequiredApprovals,
-			"requireHardwareKey":     requirement.RequireHardwareKey,
-			"allowedAaguids":         aaguids,
-			"requesterCannotApprove": requirement.RequesterCannotApprove,
-			"signerClass":            requirement.SignerClass,
+	requesterObject := map[string]interface{}{
+		"did":         requester.DID,
+		"attestation": attestation,
+	}
+	if requester.CredentialIssuerDID != nil {
+		requesterObject["credentialIssuerDid"] = *requester.CredentialIssuerDID
+	}
+	requirementObject := map[string]interface{}{
+		"requiredApprovals":      requirement.RequiredApprovals,
+		"requireHardwareKey":     requirement.RequireHardwareKey,
+		"allowedAaguids":         aaguids,
+		"requesterCannotApprove": requirement.RequesterCannotApprove,
+		"signerClass":            requirement.SignerClass,
+	}
+	if requirement.ExcludedSignerDIDs != nil {
+		excluded := append([]string{}, (*requirement.ExcludedSignerDIDs)...)
+		sort.Slice(excluded, func(i, j int) bool { return utf16Less(excluded[i], excluded[j]) })
+		unique := excluded[:0]
+		for _, did := range excluded {
+			if len(unique) == 0 || unique[len(unique)-1] != did {
+				unique = append(unique, did)
+			}
 		}
+		excluded = unique
+		requirementObject["excludedSignerDids"] = excluded
+	}
+	// Only as the literal true: one policy has one encoding, and `false` is never emitted.
+	if requirement.RequireEnrolledDevice {
+		requirementObject["requireEnrolledDevice"] = true
+	}
+	return requesterObject, requirementObject, nil
 }
 
 // CanonicalOfflineIntentPayload builds a byte-identical OFFLINE APPROVAL payload (DIV §5a.2), pinned
@@ -861,7 +1139,10 @@ func CanonicalOfflineIntentPayload(
 	expiresAt string,
 	tenantID ...string,
 ) (string, error) {
-	req, rq := canonicalCommon(requester, requirement)
+	req, rq, err := canonicalCommon(requester, requirement, false)
+	if err != nil {
+		return "", err
+	}
 	obj := map[string]interface{}{
 		"type":       DivOfflineIntentType,
 		"target":     target,
@@ -904,7 +1185,10 @@ func CanonicalDelegationPayload(
 	expiresAt string,
 	tenantID ...string,
 ) (string, error) {
-	req, rq := canonicalCommon(requester, requirement)
+	req, rq, err := canonicalCommon(requester, requirement, false)
+	if err != nil {
+		return "", err
+	}
 	delegates := append([]string(nil), delegatedTo...)
 	// UTF-16 code units, not Go's native UTF-8 byte order — the same comparator the object keys
 	// use (utf16Less). The two orders differ only for non-BMP characters, which no AAGUID (hex
@@ -986,34 +1270,60 @@ type VerifiedDelegation struct {
 	ExpiresAt string
 }
 
-// verifyTenantBinding validates the version/tenant contract against caller-owned context. Raw JSON
-// preserves the security-relevant distinction between an absent tenantId and one explicitly set to
-// null. It returns the tenant to use when reconstructing v2 bytes; it never trusts receipt data as
-// the caller's expectation.
-func verifyTenantBinding(fields canonicalFields, expectedTenantID *string) (string, string) {
-	if fields.V == nil || (*fields.V != DivVersion && *fields.V != DivTenantBoundVersion) {
-		return "", "unsupported DIV payload version"
-	}
-	if *fields.V == DivVersion {
-		if fields.TenantID != nil {
-			return "", "legacy DIV v1 payload must not carry tenantId"
+// verifyTenantBinding validates the version/tenant contract against caller-owned context, first, as
+// the reference's checkTenantBinding does: it reads `v` and `tenantId` from the payload text itself,
+// so an unparseable payload reports an unparseable version. It returns the tenant to use when
+// reconstructing v2 bytes; it never trusts receipt data as the caller's expectation. A legacy v1
+// payload that carries a tenantId is not refused here: rebuilt without one, it fails the byte
+// comparison, exactly as in the reference.
+func verifyTenantBinding(canonical string, expectedTenantID *string) (string, string) {
+	version := 0.0
+	var probe map[string]json.RawMessage
+	if json.Unmarshal([]byte(canonical), &probe) == nil {
+		if raw, ok := probe["v"]; ok {
+			var f float64
+			if json.Unmarshal(raw, &f) == nil {
+				version = f
+			}
 		}
+	}
+	if version == DivVersion {
 		if expectedTenantID != nil {
-			return "", "legacy DIV v1 payload is not tenant-bound and cannot satisfy an expected tenant"
+			return "", "legacy DIV v1 payload cannot be verified with an expected tenantId"
 		}
 		return "", ""
 	}
-	var tenantID string
-	if fields.TenantID == nil || json.Unmarshal(fields.TenantID, &tenantID) != nil || tenantID == "" {
-		return "", "DIV v2 payload requires a non-empty tenantId"
+	if version != DivTenantBoundVersion {
+		shown := "unparseable"
+		if version != 0 {
+			shown = jsNumberString(version)
+		}
+		return "", "unsupported DIV payload version (" + shown + ")"
 	}
 	if expectedTenantID == nil || *expectedTenantID == "" {
-		return "", "DIV v2 verification requires an independently supplied expected tenant"
+		return "", "expected.TenantID is required for tenant-bound DIV v2 payloads"
 	}
-	if tenantID != *expectedTenantID {
-		return "", "payload tenantId does not match the expected tenant"
+	var signed string
+	if raw, ok := probe["tenantId"]; !ok || json.Unmarshal(raw, &signed) != nil || signed == "" {
+		return "", "tenant-bound DIV v2 payload is missing a non-empty tenantId"
+	}
+	if signed != *expectedTenantID {
+		return "", "receipt was signed for a different tenant"
 	}
 	return *expectedTenantID, ""
+}
+
+// jsNumberString is JavaScript's Number#toString for a finite double, for refusal text.
+func jsNumberString(f float64) string {
+	if abs := math.Abs(f); abs != 0 && (abs >= 1e21 || abs < 1e-6) {
+		mantissa, exp, _ := strings.Cut(strconv.FormatFloat(f, 'e', -1, 64), "e")
+		digits := strings.TrimLeft(exp[1:], "0")
+		if digits == "" {
+			digits = "0"
+		}
+		return mantissa + "e" + exp[:1] + digits
+	}
+	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
 // VerifyApprovalReceipt verifies an ApprovalReceipt offline without external dependencies.
@@ -1022,8 +1332,9 @@ func verifyTenantBinding(fields canonicalFields, expectedTenantID *string) (stri
 // what was signed, and verifies the human's ES256 or WebAuthn signature. A WEBAUTHN receipt
 // additionally requires opts.ExpectedOrigin and opts.ExpectedRpID.
 func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts VerifyOptions) VerifyResult {
-	if receipt.CanonicalPayload == "" {
-		return VerifyResult{OK: false, Reason: "missing canonicalPayload"}
+	tenantID, tenantReason := verifyTenantBinding(receipt.CanonicalPayload, expected.TenantID)
+	if tenantReason != "" {
+		return VerifyResult{OK: false, Reason: tenantReason}
 	}
 
 	if why := canonicalTextProblem(receipt.CanonicalPayload); why != "" {
@@ -1033,15 +1344,11 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if err := json.Unmarshal([]byte(receipt.CanonicalPayload), &fields); err != nil {
 		return VerifyResult{OK: false, Reason: "canonicalPayload is not valid JSON"}
 	}
-	tenantID, tenantReason := verifyTenantBinding(fields, expected.TenantID)
-	if tenantReason != "" {
-		return VerifyResult{OK: false, Reason: tenantReason}
-	}
 	// A DELEGATION authorizes nothing (DIV §5a.5). Refused here unconditionally — there is deliberately
 	// NO option that would let one through, because a delegation that could authorize its own action
 	// would be exactly the pre-signed bearer capability the design exists to avoid.
 	if fields.Type == DivDelegationType {
-		return VerifyResult{OK: false, Reason: "this is a delegation, which authorizes no action on its own — verify it with VerifyDelegation and pass the result as opts.Delegation, together with an offline approval signed by the delegated operators"}
+		return VerifyResult{OK: false, Reason: "this is a delegation, which authorizes no action on its own — verify it with VerifyDelegation and pass the result as VerifyOptions.Delegation, together with an offline approval signed by the delegated operators"}
 	}
 	if fields.Type == DivAgentAuthorityType {
 		return VerifyResult{OK: false, Reason: "this is an agent authority, which authorizes no action on its own — verify it with VerifyAgentAuthority; execution still requires an approval receipt"}
@@ -1059,12 +1366,16 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: "payload is not a div-intent-verification"}
 	}
 	if offline && !opts.AllowOffline {
-		return VerifyResult{OK: false, Reason: "this is an offline approval; set AllowOffline at the specific call site permitted to run under one"}
+		return VerifyResult{OK: false, Reason: "this is an offline approval; pass VerifyOptions{AllowOffline: true} at the specific call site permitted to run under one"}
 	}
 	// A delegation only ever substitutes the approver set for an OFFLINE proof. Accepting it against an
 	// ordinary gateway-mediated receipt would silently replace the quorum the gateway enforced.
 	if opts.Delegation != nil && !offline {
 		return VerifyResult{OK: false, Reason: "a delegation can only substitute the approver set for an offline approval"}
+	}
+	// An empty expected nonce binds no challenge: refused, never compared (DIV §5 step 10).
+	if expected.Nonce == "" {
+		return VerifyResult{OK: false, Reason: nonceRequiredReason}
 	}
 	if fields.Nonce != expected.Nonce {
 		return VerifyResult{OK: false, Reason: "receipt is for a different challenge"}
@@ -1077,8 +1388,8 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if receipt.Requester == nil {
 		return VerifyResult{OK: false, Reason: "receipt missing requester"}
 	}
-	if expected.RequesterDID != "" && receipt.Requester.DID != expected.RequesterDID {
-		return VerifyResult{Reason: "approval was requested by a different principal"}
+	if opts.Delegation != nil && receipt.Requester.DID != opts.Delegation.RequesterDID {
+		return VerifyResult{OK: false, Reason: "offline approval was requested by a different principal than the delegation"}
 	}
 	agentIntent := fields.Agent != nil
 	if agentIntent && expected.AgentContext == nil {
@@ -1092,8 +1403,18 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		if fields.ExpiresAt == "" {
 			return VerifyResult{Reason: "receipt missing expiration"}
 		}
-		if problem := validateAgentContext(expected.AgentContext, fields.Exp, receipt.SigAlg); problem != "" {
+		if problem := validateAgentContext(expected.AgentContext, fields.Exp, nil); problem != "" {
 			return VerifyResult{Reason: "invalid independently asserted agent context: " + problem}
+		}
+		// The reference's order: validity window, then the irreversible/AUTO_APPROVED rule, then the
+		// delegated-agent chain.
+		nbf, _ := time.Parse("2006-01-02T15:04:05.000Z", expected.AgentContext["nbf"].(string))
+		if now, skew := evaluationTime(opts); nbf.After(now.Add(skew)) {
+			return VerifyResult{Reason: "agent approval is not valid yet"}
+		}
+		if action, _ := expected.AgentContext["action"].(map[string]interface{}); action["reversibility"] == "irreversible" &&
+			receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
+			return VerifyResult{Reason: "irreversible agent action requires a human signature"}
 		}
 		if agent, ok := expected.AgentContext["agent"].(map[string]interface{}); ok && agent["delegatedBy"] != nil {
 			delegatedBy, _ := agent["delegatedBy"].(string)
@@ -1108,14 +1429,17 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 				return VerifyResult{Reason: authority.Reason}
 			}
 		}
-		nbf, _ := time.Parse("2006-01-02T15:04:05.000Z", expected.AgentContext["nbf"].(string))
-		now, skew := evaluationTime(opts)
-		if nbf.After(now.Add(skew)) {
-			return VerifyResult{Reason: "agent approval is not valid yet"}
-		}
 	}
 	if fields.ExpiresAt == "" {
 		return VerifyResult{OK: false, Reason: "receipt missing expiration"}
+	}
+	// FAIL CLOSED on a missing target (DIV Invariant 5, Target Isolation): defaulting to the receipt's
+	// own target would have the receipt vouch for its own scope.
+	if expected.Target == "" {
+		return VerifyResult{OK: false, Reason: "expected.Target is required — it must be YOUR target identifier, asserted independently of the receipt (DIV Target Isolation)"}
+	}
+	if expected.Approvers.isUnset() {
+		return VerifyResult{OK: false, Reason: "expected.Approvers is required — the Approver key MUST come from your own trust policy, never from the receipt (DIV Invariant 3)"}
 	}
 
 	// The requirement is part of the SIGNED bytes, so a third party cannot alter it: a forged value
@@ -1127,8 +1451,17 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if ok, reason := checkQuorumMinimum(*fields.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}
 	}
+	// Identity extensions before the signer class, in every port (DIV §4.3.2).
+	if ok, reason := checkExcludedSigners(*fields.Requirement, *receipt.Requester); !ok {
+		return VerifyResult{OK: false, Reason: reason}
+	}
 	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}
+	}
+	// DIV §5 step 3e, structural half: an offline intent cannot carry requireEnrolledDevice, and an
+	// ordinary one carries it only as `true` without a hardware requirement.
+	if why := enrolledDeviceStructureProblem(*fields.Requirement, !offline); why != "" {
+		return VerifyResult{OK: false, Reason: why}
 	}
 	if ok, reason := checkRequirementFloor(*fields.Requirement, expected.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}
@@ -1169,13 +1502,14 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		if err != nil {
 			return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}
 		}
-		window := expiry.Sub(challenged)
-		if window < 0 {
-			return VerifyResult{OK: false, Reason: "offline proof expires before it was challenged"}
-		}
-		if window > time.Duration(MaxOfflineWindowMinutes)*time.Minute {
+		// Milliseconds, the reference's resolution, and its order: the cap, then a negative window.
+		windowMinutes := float64(expiry.UnixMilli()-challenged.UnixMilli()) / 60_000
+		if windowMinutes > MaxOfflineWindowMinutes {
 			return VerifyResult{OK: false, Reason: fmt.Sprintf(
-				"offline window is %.1f minutes, over the %d-minute maximum", window.Minutes(), MaxOfflineWindowMinutes)}
+				"offline window is %s minutes, over the %d-minute maximum", jsToFixed1(windowMinutes), MaxOfflineWindowMinutes)}
+		}
+		if windowMinutes < 0 {
+			return VerifyResult{OK: false, Reason: "offline proof expires before it was challenged"}
 		}
 		// The cap above bounds the window's WIDTH; this bounds its POSITION (DIV §5a.3 rule 3).
 		// Without it a proof challenged for a date years out, with a compliant 60-minute window,
@@ -1202,10 +1536,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if opts.Delegation != nil {
 		d := opts.Delegation
 		if d.TenantID != tenantID {
-			return VerifyResult{OK: false, Reason: "delegation and approval belong to different tenants or DIV versions"}
-		}
-		if receipt.Requester == nil || receipt.Requester.DID != d.RequesterDID {
-			return VerifyResult{OK: false, Reason: "offline approval was requested by a different principal than the delegation"}
+			return VerifyResult{OK: false, Reason: "delegation and approval belong to different tenants"}
 		}
 		expiry, err := parseSignedTime(d.ExpiresAt)
 		if err != nil {
@@ -1214,7 +1545,7 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		if !opts.AllowExpired {
 			now, skew := evaluationTime(opts)
 			if now.After(expiry.Add(skew)) {
-				return VerifyResult{OK: false, Reason: "delegation has expired (set AllowExpired for audit re-verification)"}
+				return VerifyResult{OK: false, Reason: "delegation has expired (pass VerifyOptions{AllowExpired: true} for audit re-verification)"}
 			}
 		}
 		if d.Target != expected.Target {
@@ -1299,8 +1630,12 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		}
 		now, skew := evaluationTime(opts)
 		if now.After(expiry.Add(skew)) {
-			return VerifyResult{OK: false, Reason: "proof has expired (set AllowExpired for audit re-verification)"}
+			return VerifyResult{OK: false, Reason: "proof has expired (pass VerifyOptions{AllowExpired: true} for audit re-verification)"}
 		}
+	}
+	// Optional: assert WHICH workload the approval was granted to.
+	if expected.RequesterDID != "" && receipt.Requester.DID != expected.RequesterDID {
+		return VerifyResult{Reason: "approval was requested by a different principal"}
 	}
 
 	// A policy AUTO_APPROVED receipt carries NO human signature, so there is nothing to verify
@@ -1318,14 +1653,14 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 			return VerifyResult{OK: false, AutoApproved: true, Reason: "an offline approval cannot be auto-approved — there is no human signature to verify"}
 		}
 		if !opts.AllowAutoApproved {
-			return VerifyResult{OK: false, AutoApproved: true, Reason: "AUTO_APPROVED receipts are refused by default"}
+			return VerifyResult{OK: false, AutoApproved: true, Reason: "auto-approved by policy — no human signature to verify (pass VerifyOptions{AllowAutoApproved: true} to accept)"}
 		}
 		return VerifyResult{OK: true, AutoApproved: true}
 	}
 
 	witnesses := witnessesOf(receipt)
 	if len(witnesses) == 0 {
-		return VerifyResult{OK: false, Reason: "missing signature or public key"}
+		return VerifyResult{OK: false, Reason: "receipt missing signature material"}
 	}
 	// The witness list is attacker-supplied and every entry costs ECDSA verifications, in the
 	// relying party's own process, immediately before the action it gates. A real quorum is single
@@ -1335,7 +1670,6 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: false, Reason: fmt.Sprintf(
 			"receipt carries %d witnesses, above the %d this verifier will process", len(witnesses), MaxWitnesses)}
 	}
-
 	// A signed four-eyes rule cannot be enforced against a key-set anchor: PublicKeys mode never
 	// authenticates signerDid, so "this signer is not the requester" is unverifiable. Refuse the
 	// receipt outright rather than letting every witness fail individually — the caller's anchor is
@@ -1344,14 +1678,28 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 	if fields.Requirement.RequiredApprovals > 1 && len(expected.Approvers.PublicKeys) > 0 {
 		return VerifyResult{OK: false, Reason: "multi-approver quorum requires a DID-mode trust anchor (DIV §5 step 3b)"}
 	}
-	if fields.Requirement.RequesterCannotApprove && len(expected.Approvers.PublicKeys) > 0 {
-		return VerifyResult{OK: false, Reason: "requesterCannotApprove requires a DID-mode trust anchor; in PublicKeys mode signerDid is unverified and four-eyes cannot be enforced"}
+	if (fields.Requirement.RequesterCannotApprove || (fields.Requirement.ExcludedSignerDIDs != nil && len(*fields.Requirement.ExcludedSignerDIDs) > 0)) &&
+		len(expected.Approvers.PublicKeys) > 0 {
+		return VerifyResult{OK: false, Reason: keyOnlyFourEyesReason}
+	}
+	// DIV §5 step 3e, list half: decided before counting, like the anchor-shape checks above, so a
+	// caller missing its enrollment records is told so instead of reading a quorum shortfall.
+	var enrolledDevices map[string]bool
+	if fields.Requirement.RequireEnrolledDevice {
+		fingerprints, why := enrolledDeviceFingerprints(expected.EnrolledDeviceKeys)
+		if why != "" {
+			return VerifyResult{OK: false, Reason: why}
+		}
+		enrolledDevices = fingerprints
 	}
 
 	// Count DISTINCT approvers whose signature verifies under a key we independently trust. Distinct
 	// is load-bearing: without it, N copies of one approver's signature satisfy an N-of-M quorum.
 	verified := map[string]bool{}
 	countedKeys := map[string]string{}
+	if why := seedExcludedSigningKeys(countedKeys, expected.Approvers, *fields.Requirement, *receipt.Requester); why != "" {
+		return VerifyResult{OK: false, Reason: why}
+	}
 	var failures []string
 	for _, w := range witnesses {
 		cands, reason := candidateKeys(expected.Approvers, w, delegatedTo)
@@ -1387,8 +1735,28 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 				continue
 			}
 		}
+		// DIV §5 step 7: under requireEnrolledDevice only an ES256 witness under one of the caller's
+		// enrolled device keys counts. The key compared is the TRUSTED one it verified under.
+		if enrolledDevices != nil &&
+			((w.SigAlg != nil && *w.SigAlg == "WEBAUTHN") || !enrolledDevices[signingKeyIdentity(matchedKey)]) {
+			failures = append(failures, fmt.Sprintf(
+				"signer %s did not sign with an enrolled approver device key, but the signed policy requires one", w.SignerDID))
+			continue
+		}
 		// Four-eyes, verified offline against the requester in the same signed payload.
-		if fields.Requirement.RequesterCannotApprove && w.SignerDID == receipt.Requester.DID {
+		excluded := map[string]bool{}
+		if fields.Requirement.ExcludedSignerDIDs != nil {
+			for _, did := range *fields.Requirement.ExcludedSignerDIDs {
+				excluded[did] = true
+			}
+		}
+		if fields.Requirement.RequesterCannotApprove {
+			excluded[receipt.Requester.DID] = true
+			if receipt.Requester.CredentialIssuerDID != nil {
+				excluded[*receipt.Requester.CredentialIssuerDID] = true
+			}
+		}
+		if excluded[w.SignerDID] {
 			failures = append(failures, fmt.Sprintf(
 				"four-eyes: requester %s cannot approve their own action", w.SignerDID))
 			continue
@@ -1433,8 +1801,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 // check is that the people entitled to approve this action are the ones who signed away that
 // entitlement.
 func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOptions) (VerifyResult, *VerifiedDelegation) {
-	if receipt.CanonicalPayload == "" {
-		return VerifyResult{OK: false, Reason: "missing canonicalPayload"}, nil
+	tenantID, tenantReason := verifyTenantBinding(receipt.CanonicalPayload, expected.TenantID)
+	if tenantReason != "" {
+		return VerifyResult{OK: false, Reason: tenantReason}, nil
 	}
 	if why := canonicalTextProblem(receipt.CanonicalPayload); why != "" {
 		return VerifyResult{OK: false, Reason: why}, nil
@@ -1443,20 +1812,18 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	if err := json.Unmarshal([]byte(receipt.CanonicalPayload), &fields); err != nil {
 		return VerifyResult{OK: false, Reason: "canonicalPayload is not valid JSON"}, nil
 	}
-	tenantID, tenantReason := verifyTenantBinding(fields, expected.TenantID)
-	if tenantReason != "" {
-		return VerifyResult{OK: false, Reason: tenantReason}, nil
-	}
 	if fields.Type != DivDelegationType {
 		return VerifyResult{OK: false, Reason: "payload is not a div-delegation"}, nil
 	}
 	// DIV §4.4.6: a Delegation REQUIRES an identity-associating anchor and MUST be refused under a
 	// key-set anchor — at seal verification too, not only when delegatedTo is enforced at use time.
 	// The sealing quorum names PEOPLE; in PublicKeys mode it would count credentials instead.
-	if len(expected.Approvers.PublicKeys) > 0 {
+	if expected.Approvers.PublicKeys != nil {
 		return VerifyResult{OK: false, Reason: "a delegation requires a DID-mode trust anchor (DIDs + ResolveKeys); a key-set anchor cannot associate identities (DIV §4.4.6)"}, nil
 	}
-	if len(fields.DelegatedTo) == 0 {
+	// An empty list is a valid set here, as in the reference: it fails the distinct-operator count
+	// below. Absent, null or an empty entry is not a set at all.
+	if fields.DelegatedTo == nil || containsDID(fields.DelegatedTo, "") {
 		return VerifyResult{OK: false, Reason: "delegation is missing a valid delegatedTo set"}, nil
 	}
 	if fields.DelegatedQuorum == nil || *fields.DelegatedQuorum < 1 {
@@ -1491,13 +1858,13 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	if err != nil {
 		return VerifyResult{OK: false, Reason: "expiresAt is not a valid RFC3339 timestamp"}, nil
 	}
-	window := expiry.Sub(sealed)
-	if window < 0 {
+	windowHours := float64(expiry.UnixMilli()-sealed.UnixMilli()) / 3_600_000
+	if windowHours < 0 {
 		return VerifyResult{OK: false, Reason: "delegation expires before it was sealed"}, nil
 	}
-	if window > time.Duration(MaxDelegationWindowHours)*time.Hour {
+	if windowHours > MaxDelegationWindowHours {
 		return VerifyResult{OK: false, Reason: fmt.Sprintf(
-			"delegation window is %.1f hours, over the %d-hour maximum", window.Hours(), MaxDelegationWindowHours)}, nil
+			"delegation window is %s hours, over the %d-hour maximum", jsToFixed1(windowHours), MaxDelegationWindowHours)}, nil
 	}
 	// Position, not just width (DIV §5a.6 step 1, mirroring §5a.3 rule 3). A forward-dated sealedAt
 	// slides the 72-hour window arbitrarily far out, and §5a.8 names that cap as Delegation's ONLY
@@ -1517,14 +1884,25 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	if ok, reason := checkQuorumMinimum(*fields.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}, nil
 	}
+	// Identity extensions before the signer class, in every port (DIV §4.3.2).
+	if ok, reason := checkExcludedSigners(*fields.Requirement, *receipt.Requester); !ok {
+		return VerifyResult{OK: false, Reason: reason}, nil
+	}
 	if ok, reason := checkSignerClass(*fields.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}, nil
+	}
+	// DIV §5 step 3e: this payload kind can never carry requireEnrolledDevice.
+	if why := enrolledDeviceStructureProblem(*fields.Requirement, false); why != "" {
+		return VerifyResult{OK: false, Reason: why}, nil
 	}
 	if ok, reason := checkRequirementFloor(*fields.Requirement, expected.Requirement); !ok {
 		return VerifyResult{OK: false, Reason: reason}, nil
 	}
 	if expected.Target == "" {
 		return VerifyResult{OK: false, Reason: "expected.Target is required — it must be YOUR target identifier, asserted independently of the delegation (DIV Target Isolation)"}, nil
+	}
+	if expected.Approvers.isUnset() {
+		return VerifyResult{OK: false, Reason: "expected.Approvers is required — the delegating approvers MUST come from your own trust policy, never from the delegation (DIV Invariant 3)"}, nil
 	}
 
 	recomputed, recomputeErr := CanonicalDelegationPayload(
@@ -1553,7 +1931,7 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 	if !opts.AllowExpired {
 		now, skew := evaluationTime(opts)
 		if now.After(expiry.Add(skew)) {
-			return VerifyResult{OK: false, Reason: "delegation has expired (set AllowExpired for audit re-verification)"}, nil
+			return VerifyResult{OK: false, Reason: "delegation has expired (pass VerifyOptions{AllowExpired: true} for audit re-verification)"}, nil
 		}
 	}
 	if receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
@@ -1570,8 +1948,18 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		return VerifyResult{OK: false, Reason: fmt.Sprintf(
 			"delegation carries %d witnesses, above the %d this verifier will process", len(witnesses), MaxWitnesses)}, nil
 	}
+	if fields.Requirement.RequiredApprovals > 1 && expected.Approvers.PublicKeys != nil {
+		return VerifyResult{OK: false, Reason: "multi-approver quorum requires a DID-mode trust anchor (DIV §5 step 3b)"}, nil
+	}
+	if (fields.Requirement.RequesterCannotApprove || (fields.Requirement.ExcludedSignerDIDs != nil && len(*fields.Requirement.ExcludedSignerDIDs) > 0)) &&
+		expected.Approvers.PublicKeys != nil {
+		return VerifyResult{OK: false, Reason: keyOnlyFourEyesReason}, nil
+	}
 	verified := map[string]bool{}
 	countedKeys := map[string]string{}
+	if why := seedExcludedSigningKeys(countedKeys, expected.Approvers, *fields.Requirement, *receipt.Requester); why != "" {
+		return VerifyResult{OK: false, Reason: why}, nil
+	}
 	var failures []string
 	for _, w := range witnesses {
 		cands, reason := candidateKeys(expected.Approvers, w, nil)
@@ -1604,7 +1992,19 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 				continue
 			}
 		}
-		if fields.Requirement.RequesterCannotApprove && w.SignerDID == receipt.Requester.DID {
+		excluded := map[string]bool{}
+		if fields.Requirement.ExcludedSignerDIDs != nil {
+			for _, did := range *fields.Requirement.ExcludedSignerDIDs {
+				excluded[did] = true
+			}
+		}
+		if fields.Requirement.RequesterCannotApprove {
+			excluded[receipt.Requester.DID] = true
+			if receipt.Requester.CredentialIssuerDID != nil {
+				excluded[*receipt.Requester.CredentialIssuerDID] = true
+			}
+		}
+		if excluded[w.SignerDID] {
 			failures = append(failures, fmt.Sprintf(
 				"four-eyes: requester %s cannot delegate to themselves", w.SignerDID))
 			continue
@@ -1752,4 +2152,25 @@ func verifyEcdsaSignature(pub *ecdsa.PublicKey, message, sigBytes []byte) bool {
 		return ecdsa.Verify(pub, hashed[:], r, s)
 	}
 	return false
+}
+
+// jsToFixed1 is Number.prototype.toFixed(1) for refusal text: the exact binary value rounded to one
+// decimal, a tie going to the larger digit — fmt's %.1f rounds half to even, so 30.25 would print
+// "30.2" where the reference prints "30.3".
+func jsToFixed1(x float64) string {
+	neg := x < 0
+	r := new(big.Rat).SetFloat64(math.Abs(x))
+	if r == nil {
+		return jsNumberString(x)
+	}
+	r.Mul(r, big.NewRat(10, 1))
+	r.Add(r, big.NewRat(1, 2))
+	n := new(big.Int).Quo(r.Num(), r.Denom())
+	tenths := new(big.Int)
+	whole, _ := new(big.Int).QuoRem(n, big.NewInt(10), tenths)
+	out := whole.String() + "." + tenths.String()
+	if neg && n.Sign() != 0 {
+		out = "-" + out
+	}
+	return out
 }

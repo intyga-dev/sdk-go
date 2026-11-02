@@ -21,21 +21,23 @@ type PolicyRule struct {
 	ActionPattern string `json:"actionPattern"`
 	// RequiredApprovals is int64, not int, so a large value means the same on 32- and 64-bit builds:
 	// anything up to 2^53-1 (JavaScript's safe-integer bound) is a valid quorum that no rule can meet.
-	RequiredApprovals        int64    `json:"requiredApprovals"`
-	ApproverDids             []string `json:"approverDids"`
-	RequireHardwareKey       bool     `json:"requireHardwareKey"`
-	AllowedAaguids           []string `json:"allowedAaguids"`
-	RequesterCannotApprove   bool     `json:"requesterCannotApprove"`
-	RequireAttestedRequester bool     `json:"requireAttestedRequester"`
-	AllowedIssuers           []string `json:"allowedIssuers"`
-	ApproverGroupIds         []string `json:"approverGroupIds,omitempty"`
-	EscalationApproverDids   []string `json:"escalationApproverDids"`
-	EscalationGroupIds       []string `json:"escalationGroupIds,omitempty"`
-	EscalateAfterSeconds     *int64   `json:"escalateAfterSeconds"`
-	AutoApproveRequesterDid  *string  `json:"autoApproveRequesterDid"`
-	AutoApproveDayOfWeek     *int     `json:"autoApproveDayOfWeek"`
-	AutoApproveWindowStart   *string  `json:"autoApproveWindowStart"`
-	AutoApproveWindowEnd     *string  `json:"autoApproveWindowEnd"`
+	RequiredApprovals        int64     `json:"requiredApprovals"`
+	ApproverDids             []string  `json:"approverDids"`
+	RequireHardwareKey       bool      `json:"requireHardwareKey"`
+	AllowedAaguids           []string  `json:"allowedAaguids"`
+	RequesterCannotApprove   bool      `json:"requesterCannotApprove"`
+	ExcludedSignerDIDs       *[]string `json:"excludedSignerDids,omitempty"`
+	RequireAttestedRequester bool      `json:"requireAttestedRequester"`
+	AllowedIssuers           []string  `json:"allowedIssuers"`
+	ApproverGroupIds         []string  `json:"approverGroupIds,omitempty"`
+	EscalationApproverDids   []string  `json:"escalationApproverDids"`
+	EscalationGroupIds       []string  `json:"escalationGroupIds,omitempty"`
+	EscalateAfterSeconds     *int64    `json:"escalateAfterSeconds"`
+	AutoApproveRequesterDid  *string   `json:"autoApproveRequesterDid"`
+	AutoApproveDayOfWeek     *int      `json:"autoApproveDayOfWeek"`
+	AutoApproveWindowStart   *string   `json:"autoApproveWindowStart"`
+	AutoApproveWindowEnd     *string   `json:"autoApproveWindowEnd"`
+	RequireEnrolledDevice    bool      `json:"requireEnrolledDevice,omitempty"` // DIV §4.3.2; false is the reference's absent
 }
 
 // ApprovalPolicyConflict reports a policy that cannot be resolved without guessing. Fields names the
@@ -108,8 +110,14 @@ func LostApprovalConstraints(selected, other PolicyRule) []string {
 	if other.RequesterCannotApprove && !selected.RequesterCannotApprove {
 		lost = append(lost, "requesterCannotApprove")
 	}
+	if other.ExcludedSignerDIDs != nil && (selected.ExcludedSignerDIDs == nil || !subset(*other.ExcludedSignerDIDs, *selected.ExcludedSignerDIDs)) {
+		lost = append(lost, "excludedSignerDids")
+	}
 	if other.RequireAttestedRequester && !selected.RequireAttestedRequester {
 		lost = append(lost, "requireAttestedRequester")
+	}
+	if other.RequireEnrolledDevice && !selected.RequireEnrolledDevice {
+		lost = append(lost, "requireEnrolledDevice")
 	}
 	if len(other.AllowedAaguids) > 0 && (len(selected.AllowedAaguids) == 0 || !subset(selected.AllowedAaguids, other.AllowedAaguids)) {
 		lost = append(lost, "allowedAaguids")
@@ -135,6 +143,7 @@ func LostApprovalConstraints(selected, other PolicyRule) []string {
 		if !sameWindow(selected, other) ||
 			selected.RequiredApprovals != other.RequiredApprovals ||
 			selected.RequireHardwareKey != other.RequireHardwareKey ||
+			selected.RequireEnrolledDevice != other.RequireEnrolledDevice ||
 			selected.RequesterCannotApprove != other.RequesterCannotApprove ||
 			selected.RequireAttestedRequester != other.RequireAttestedRequester ||
 			!sameSet(a, b) ||

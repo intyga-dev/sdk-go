@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -202,17 +203,40 @@ func decodeBase64Flexible(s string) ([]byte, error) {
 // verifyWebAuthnWitness verifies one WEBAUTHN witness against an already-TRUSTED key. The key comes
 // from the caller's trust anchor — never from the receipt. Returns "" on success.
 func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt ApprovalReceipt, opts VerifyOptions) string {
-	if w.AuthenticatorData == nil || w.ClientDataJSON == nil {
-		return "WebAuthn receipt missing authenticatorData or clientDataJSON"
+	if w.AuthenticatorData == nil || w.ClientDataJSON == nil || *w.AuthenticatorData == "" || *w.ClientDataJSON == "" {
+		return "WebAuthn witness missing authenticatorData or clientDataJSON"
 	}
 	// FAIL CLOSED: without an expected origin and RP ID there is nothing to pin the assertion to.
 	if opts.ExpectedOrigin == "" || opts.ExpectedRpID == "" {
 		return "WebAuthn receipts require ExpectedOrigin and ExpectedRpID — without them an assertion from any relying party would verify"
 	}
 
-	clientDataBuf, err := decodeBase64Flexible(*w.ClientDataJSON)
+	return verifyWebAuthnAssertion(*w.ClientDataJSON, *w.AuthenticatorData, w.Signature, receipt.CanonicalPayload,
+		[]string{opts.ExpectedOrigin}, opts.ExpectedRpID,
+		opts.RequireUserVerification == nil || *opts.RequireUserVerification, opts.AllowCrossOrigin,
+		func() (*ecdsa.PublicKey, error) {
+			coseBuf, err := decodeBase64Flexible(trustedKey)
+			if err != nil {
+				return nil, errors.New("invalid trusted key base64")
+			}
+			return parseCoseP256Key(coseBuf)
+		})
+}
+
+// verifyWebAuthnAssertion is the §4.4.5 assertion check shared by the receipt verifiers and
+// VerifyWebAuthnWitness, as the reference shares its verifyWebAuthnAssertion. Returns "" on success
+// and never panics: anything unexpected is a "WebAuthn verification failed: " refusal.
+func verifyWebAuthnAssertion(clientDataJSON, authenticatorData, signature, signedPayload string,
+	expectedOrigins []string, expectedRpID string, requireUV, allowCrossOrigin bool,
+	keyOf func() (*ecdsa.PublicKey, error)) (reason string) {
+	defer func() {
+		if r := recover(); r != nil {
+			reason = webAuthnFailed + fmt.Sprint(r)
+		}
+	}()
+	clientDataBuf, err := decodeBase64Flexible(clientDataJSON)
 	if err != nil {
-		return "invalid clientDataJSON base64"
+		return webAuthnFailed + "invalid clientDataJSON base64"
 	}
 	var clientData struct {
 		Type      string `json:"type"`
@@ -226,7 +250,7 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 		TopOrigin *string `json:"topOrigin"`
 	}
 	if err := json.Unmarshal(clientDataBuf, &clientData); err != nil {
-		return "clientDataJSON is not valid JSON"
+		return webAuthnFailed + "clientDataJSON is not valid JSON"
 	}
 
 	// An assertion, not a registration: webauthn.create signs a different ceremony over the same
@@ -234,30 +258,30 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 	if clientData.Type != "webauthn.get" {
 		return "clientDataJSON is not a webauthn.get assertion"
 	}
-	if clientData.Origin != opts.ExpectedOrigin {
+	if !containsDID(expectedOrigins, clientData.Origin) {
 		return "assertion origin does not match ExpectedOrigin"
 	}
-	if clientData.CrossOrigin && !opts.AllowCrossOrigin {
+	if clientData.CrossOrigin && !allowCrossOrigin {
 		return "assertion was produced in a cross-origin frame (crossOrigin=true)"
 	}
 	// A topOrigin that differs from origin is the same embedding reported another way, refused
 	// exactly like crossOrigin=true (DIV §4.4.5 rule 5) — the gateway refuses it at ingest.
-	if clientData.TopOrigin != nil && *clientData.TopOrigin != clientData.Origin && !opts.AllowCrossOrigin {
+	if clientData.TopOrigin != nil && *clientData.TopOrigin != clientData.Origin && !allowCrossOrigin {
 		return "assertion was produced in a frame embedded by another origin (topOrigin differs from origin)"
 	}
-	expectedChallenge := base64urlNoPad([]byte(receipt.CanonicalPayload))
+	expectedChallenge := base64urlNoPad([]byte(signedPayload))
 	if stripBase64Padding(clientData.Challenge) != expectedChallenge {
 		return "clientDataJSON challenge does not match canonical payload"
 	}
 
-	authData, err := decodeBase64Flexible(*w.AuthenticatorData)
+	authData, err := decodeBase64Flexible(authenticatorData)
 	if err != nil {
-		return "invalid authenticatorData base64"
+		return webAuthnFailed + "invalid authenticatorData base64"
 	}
 	if len(authData) < 37 {
 		return "authenticatorData is too short"
 	}
-	rpIdHash := sha256.Sum256([]byte(opts.ExpectedRpID))
+	rpIdHash := sha256.Sum256([]byte(expectedRpID))
 	if subtle.ConstantTimeCompare(authData[:32], rpIdHash[:]) != 1 {
 		return "authenticatorData rpIdHash does not match ExpectedRpID"
 	}
@@ -265,32 +289,34 @@ func verifyWebAuthnWitness(w ApprovalWitness, trustedKey string, receipt Approva
 	if flags&authDataFlagUP == 0 {
 		return "authenticatorData user-present flag is not set"
 	}
-	requireUV := opts.RequireUserVerification == nil || *opts.RequireUserVerification
 	if requireUV && flags&authDataFlagUV == 0 {
 		return "authenticatorData user-verified flag is not set"
 	}
 
-	// The COSE key is parsed from the TRUSTED key, not the receipt's copy.
-	coseBuf, err := decodeBase64Flexible(trustedKey)
+	// The key is the TRUSTED key, never the receipt's copy.
+	pub, err := keyOf()
 	if err != nil {
-		return "invalid trusted key base64"
+		return webAuthnFailed + err.Error()
 	}
-	pub, err := parseCoseP256Key(coseBuf)
+	sigBytes, err := decodeBase64Flexible(signature)
 	if err != nil {
-		return err.Error()
-	}
-	sigBytes, err := decodeBase64Flexible(w.Signature)
-	if err != nil {
-		return "invalid signature base64"
+		return webAuthnFailed + "invalid signature base64"
 	}
 
 	clientDataHash := sha256.Sum256(clientDataBuf)
 	signedData := append(append([]byte{}, authData...), clientDataHash[:]...)
-	if !verifyEcdsaSignature(pub, signedData, sigBytes) {
+	// A WebAuthn ES256 assertion signature is ASN.1 DER (WebAuthn §6.5.6), and DER only, as in the
+	// reference: a raw r‖s encoding is refused like any other signature that does not verify.
+	digest := sha256.Sum256(signedData)
+	if !ecdsa.VerifyASN1(pub, digest[:], sigBytes) {
 		return "WebAuthn signature does not verify against the trusted signer key"
 	}
 	return ""
 }
+
+// webAuthnFailed prefixes a failure the reference reports from its catch-all, whose detail is the
+// platform library's own message ("WebAuthn verification failed: <message>").
+const webAuthnFailed = "WebAuthn verification failed: "
 
 // stripBase64Padding removes trailing '=' so a padded challenge compares equal to the unpadded form.
 func stripBase64Padding(s string) string {
@@ -298,4 +324,91 @@ func stripBase64Padding(s string) string {
 		s = s[:len(s)-1]
 	}
 	return s
+}
+
+// WebAuthnWitness is one WebAuthn assertion and the exact payload it claims to sign — a single
+// stored witness row, outside any receipt.
+type WebAuthnWitness struct {
+	// SignedPayload is the string whose UTF-8 bytes were the assertion challenge, as signed.
+	SignedPayload string `json:"signedPayload"`
+	// PublicKey is the credential's P-256 key, base64 or base64url: a COSE_Key (as recorded at
+	// registration) or DER SubjectPublicKeyInfo. Supply it from YOUR record of the credential —
+	// never from the thing being verified.
+	PublicKey string `json:"publicKey"`
+	// AuthenticatorData and ClientDataJSON are base64 or base64url, as the browser returned them.
+	AuthenticatorData string `json:"authenticatorData"`
+	ClientDataJSON    string `json:"clientDataJSON"`
+	// Signature is the DER ECDSA assertion signature.
+	Signature string `json:"signature"`
+}
+
+// WebAuthnWitnessExpectation pins what VerifyWebAuthnWitness accepts.
+type WebAuthnWitnessExpectation struct {
+	// ExpectedOrigin lists the origin(s) the assertion may carry, e.g. "https://app.example.com".
+	// Required: at least one, none empty.
+	ExpectedOrigin []string
+	// ExpectedRpID is the RP ID the authenticatorData must hash to. Required.
+	ExpectedRpID string
+	// RequireUserVerification demands the User-Verified flag; nil means true. User-Present is
+	// always required.
+	RequireUserVerification *bool
+	// AllowCrossOrigin accepts clientDataJSON.crossOrigin=true or a differing topOrigin. Defaults to
+	// false (DIV §4.4.5 rule 5).
+	AllowCrossOrigin bool
+}
+
+// VerifyWebAuthnWitness verifies ONE WebAuthn assertion on its own — the §4.4.5 checks every
+// receipt verifier here applies to each WEBAUTHN witness, without a receipt around it: one approver
+// of a quorum, a console step-up, a row read back out of an audit ledger. Same implementation as
+// the receipt path, not a copy. It mirrors verifyWebAuthnWitness in @intyga/verify.
+//
+// It answers only "did the holder of THIS key sign THIS payload, at THIS relying party, with the
+// user present". It knows nothing of quorum, validity windows, payload type, the signed requirement
+// or who the key belongs to: verify an approval with VerifyApprovalReceipt (or the delegation,
+// agent-authority and platform verifiers), which also enforce those. It fails closed on missing
+// expectations or fields and never panics.
+func VerifyWebAuthnWitness(witness WebAuthnWitness, expectation WebAuthnWitnessExpectation) VerifyResult {
+	if len(expectation.ExpectedOrigin) == 0 || containsDID(expectation.ExpectedOrigin, "") || expectation.ExpectedRpID == "" {
+		return VerifyResult{Reason: "a WebAuthn witness requires ExpectedOrigin and ExpectedRpID — without them an assertion from any relying party would verify"}
+	}
+	for _, field := range []struct{ name, value string }{
+		{"signedPayload", witness.SignedPayload},
+		{"publicKey", witness.PublicKey},
+		{"authenticatorData", witness.AuthenticatorData},
+		{"clientDataJSON", witness.ClientDataJSON},
+		{"signature", witness.Signature},
+	} {
+		if field.value == "" {
+			return VerifyResult{Reason: "WebAuthn witness missing " + field.name}
+		}
+	}
+	reason := verifyWebAuthnAssertion(witness.ClientDataJSON, witness.AuthenticatorData, witness.Signature,
+		witness.SignedPayload, expectation.ExpectedOrigin, expectation.ExpectedRpID,
+		expectation.RequireUserVerification == nil || *expectation.RequireUserVerification,
+		expectation.AllowCrossOrigin, func() (*ecdsa.PublicKey, error) { return webAuthnPublicKey(witness.PublicKey) })
+	if reason != "" {
+		return VerifyResult{Reason: reason}
+	}
+	return VerifyResult{OK: true}
+}
+
+// webAuthnPublicKey reads a caller-supplied P-256 credential key: DER SPKI (a SEQUENCE, 0x30) or a
+// COSE_Key (a CBOR map), as the reference does.
+func webAuthnPublicKey(encoded string) (*ecdsa.PublicKey, error) {
+	der, err := decodeBase64Flexible(encoded)
+	if err != nil {
+		return nil, errors.New("invalid public key base64")
+	}
+	if len(der) == 0 || der[0] != 0x30 {
+		return parseCoseP256Key(der)
+	}
+	pub, err := x509.ParsePKIXPublicKey(der)
+	if err != nil {
+		return nil, errors.New("failed to parse SPKI public key")
+	}
+	ecdsaPub, ok := pub.(*ecdsa.PublicKey)
+	if !ok || ecdsaPub.Curve != elliptic.P256() {
+		return nil, errors.New("public key is not a P-256 key")
+	}
+	return ecdsaPub, nil
 }
