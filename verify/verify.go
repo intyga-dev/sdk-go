@@ -763,12 +763,18 @@ type ApprovalWitness struct {
 	decoded           bool
 	present           map[string]bool
 	nulls             map[string]bool
+	// isNull records a JSON null in the signatures array: a malformed witness, never a zero one.
+	isNull bool
 }
 
 // UnmarshalJSON remembers absent witness fields separately from explicit empty strings. Agent
 // receipt digests project absent values as null but preserve empty strings, matching the TS/Python
 // implementations; the distinction is otherwise lost by Go's zero-value string fields.
 func (w *ApprovalWitness) UnmarshalJSON(data []byte) error {
+	if strings.TrimSpace(string(data)) == "null" {
+		*w = ApprovalWitness{decoded: true, isNull: true}
+		return nil
+	}
 	type witnessFields ApprovalWitness
 	var decoded witnessFields
 	if err := json.Unmarshal(data, &decoded); err != nil {
@@ -1658,6 +1664,9 @@ func VerifyApprovalReceipt(receipt ApprovalReceipt, expected Expected, opts Veri
 		return VerifyResult{OK: true, AutoApproved: true}
 	}
 
+	if malformed := witnessProblem(receipt); malformed != "" {
+		return VerifyResult{OK: false, Reason: malformed}
+	}
 	witnesses := witnessesOf(receipt)
 	if len(witnesses) == 0 {
 		return VerifyResult{OK: false, Reason: "receipt missing signature material"}
@@ -1938,6 +1947,9 @@ func VerifyDelegation(receipt ApprovalReceipt, expected Expected, opts VerifyOpt
 		return VerifyResult{OK: false, Reason: "a delegation cannot be auto-approved — delegating approval authority requires human signatures"}, nil
 	}
 
+	if malformed := witnessProblem(receipt); malformed != "" {
+		return VerifyResult{OK: false, Reason: strings.Replace(malformed, "receipt", "delegation", 1)}, nil
+	}
 	witnesses := witnessesOf(receipt)
 	if len(witnesses) == 0 {
 		return VerifyResult{OK: false, Reason: "delegation missing signature material"}, nil
@@ -2092,6 +2104,23 @@ func witnessesOf(receipt ApprovalReceipt) []ApprovalWitness {
 		AuthenticatorData: receipt.AuthenticatorData,
 		ClientDataJSON:    receipt.ClientDataJSON,
 	}}
+}
+
+// witnessProblem refuses a `signatures` array that carries a malformed element — a JSON null, an
+// object with no fields, or one without a signature — before any element is counted. The array is
+// one artifact: a null beside a valid witness is malformed, never "one non-verifying witness"
+// (audit A-04, 6 Nov 2026; the reference's witnessProblem). A field of the wrong JSON type is
+// already a parse error in this port.
+func witnessProblem(receipt ApprovalReceipt) string {
+	for _, w := range receipt.Signatures {
+		if w.isNull || (w.decoded && len(w.present) == 0) {
+			return "receipt carries a malformed witness"
+		}
+		if w.Signature == "" {
+			return "receipt carries a malformed witness: signature is not a string"
+		}
+	}
+	return ""
 }
 
 // verifyWitness verifies one witness using an already-TRUSTED key. Returns "" on success.

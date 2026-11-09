@@ -142,6 +142,9 @@ func VerifyPlatformReceipt(receipt PlatformReceipt, expected PlatformReceiptExpe
 	if receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
 		return VerifyResult{Reason: "a platform receipt cannot be auto-approved — there is no signature to verify"}
 	}
+	if malformed := witnessProblem(receipt); malformed != "" {
+		return VerifyResult{Reason: malformed}
+	}
 	w := witnessesOf(receipt)
 	if len(w) == 0 {
 		return VerifyResult{Reason: "receipt missing signature material"}
@@ -324,6 +327,9 @@ func VerifyAgentAuthority(receipt ApprovalReceipt, expected AgentAuthorityExpect
 	}
 	if receipt.SigAlg != nil && *receipt.SigAlg == "AUTO_APPROVED" {
 		return VerifyResult{Reason: "an agent authority cannot be auto-approved — granting agent scope requires human signatures"}, nil
+	}
+	if malformed := witnessProblem(receipt); malformed != "" {
+		return VerifyResult{Reason: strings.Replace(malformed, "receipt", "authority", 1)}, nil
 	}
 	ws := witnessesOf(receipt)
 	if len(ws) == 0 {

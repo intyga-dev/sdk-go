@@ -3,6 +3,12 @@
 All notable changes to `github.com/intyga-dev/sdk-go` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 
+## [2.3.1]
+
+- Requires `github.com/intyga-dev/verify-go/v2` v2.4.0 (malformed witnesses refused, never
+  counted as non-verifying). No change to this module's own code. From this release a Go module's
+  version is the top heading of its own changelog; the mirror tag is cut from it.
+
 ## [2.3.0]
 
 - DIV §4.3.2 "Enrolled approver devices" (targets DIV 1.3.0), pinned by the `bundle-v2-enrolled-device-*`
